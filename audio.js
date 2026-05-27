@@ -4,8 +4,9 @@
    Faded by time-of-day phase.
    ============================================================ */
 window.VitaraAudio = (function () {
-  let ctx, master, windFilter, windGain, waterGain, nightGain, birdGain;
+  let ctx, master, windFilter, windGain, waterGain, nightGain, birdGain, insectGain;
   let started = false;
+  let insectTimer = null;
 
   function start() {
     if (started) return;
@@ -58,6 +59,30 @@ window.VitaraAudio = (function () {
       drone.connect(nightGain); drone2.connect(nightGain); nightGain.connect(master);
       drone.start(); drone2.start();
 
+      // ---- Night insects (cricket trill) ----
+      insectGain = ctx.createGain(); insectGain.gain.value = 0.0; insectGain.connect(master);
+      function cricket() {
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        // Tight cluster of fast 4–6kHz blips
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'square'; o.frequency.value = 4200 + Math.random()*800;
+        const tremolo = ctx.createOscillator();
+        tremolo.frequency.value = 24 + Math.random() * 14;
+        const tremGain = ctx.createGain(); tremGain.gain.value = 0.12;
+        tremolo.connect(tremGain).connect(g.gain);
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(0.04, now + 0.05);
+        g.gain.linearRampToValueAtTime(0.001, now + 0.4 + Math.random()*0.3);
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = 4800; bp.Q.value = 18;
+        o.connect(bp).connect(g).connect(insectGain);
+        o.start(now); tremolo.start(now);
+        o.stop(now + 0.7); tremolo.stop(now + 0.7);
+        insectTimer = setTimeout(cricket, 600 + Math.random() * 1400);
+      }
+      cricket();
+
       // ---- Birdsong pulses (subtle) ----
       birdGain = ctx.createGain(); birdGain.gain.value = 0.0; birdGain.connect(master);
       function chirp() {
@@ -85,7 +110,7 @@ window.VitaraAudio = (function () {
     if (!ctx || !master) return;
     try {
       master.gain.linearRampToValueAtTime(0.0, ctx.currentTime + 0.6);
-      setTimeout(() => { ctx?.close(); ctx = null; started = false; }, 800);
+      setTimeout(() => { ctx?.close(); ctx = null; started = false; if (insectTimer) clearTimeout(insectTimer); }, 800);
     } catch (e) {}
   }
 
@@ -97,6 +122,7 @@ window.VitaraAudio = (function () {
     if (waterGain) waterGain.gain.value = Math.min(1, Math.max(0, (p - 0.3))) * 0.06;
     if (nightGain) nightGain.gain.value = Math.max(0, p - 0.55) * 0.05;
     if (birdGain)  birdGain.gain.value  = (1 - p) * 0.35;
+    if (insectGain) insectGain.gain.value = Math.max(0, p - 0.6) * 1.0;
   }
 
   return { start, stop, setPhase, isStarted: () => started };

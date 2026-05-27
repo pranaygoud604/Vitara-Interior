@@ -81,7 +81,7 @@ function Hero() {
       <div className="hero__scrollcue">
         <span>scroll to enter</span>
         <div className="line"></div>
-        <span>14 chapters</span>
+        <span>17 chapters</span>
       </div>
     </section>
   );

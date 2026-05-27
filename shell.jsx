@@ -120,7 +120,7 @@ function ChromeMeta() {
         <div className="progress">
           <span>journey //</span>
           <div className="progress__bar"><i ref={barRef}></i></div>
-          <span>14 chapters</span>
+          <span>17 chapters</span>
         </div>
         <div>scroll<span> // to walk in</span></div>
       </div>
@@ -162,7 +162,7 @@ function HUD({ phaseRef, soundOn, setSoundOn }) {
 
 /* ---------- Floating chapter counter (lower-left, fixed) ---------- */
 function ChapterCounter({ activeIdx, name }) {
-  const total = 14;
+  const total = (window.VITARA_DATA?.chapters?.length) || 17;
   return (
     <div className="chapter-counter" id="chapter-counter" style={{ opacity: activeIdx == null ? 0 : 1, transition: "opacity .6s" }}>
       <div className="lg">

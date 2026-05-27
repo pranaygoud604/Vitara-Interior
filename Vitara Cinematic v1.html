@@ -1,0 +1,1066 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Vitara — Atmosphere · Resonance · Texture</title>
+<meta name="description" content="Vitara — a residential design studio composing ultra-luxury villa interiors. Atmosphere, resonance, texture." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink:    #0a0807;
+    --ink-2:  #14110d;
+    --bone:   #efe9dc;
+    --bone-2: #d8cfbd;
+    --amber:  #c69052;
+    --amber-2:#a3733c;
+    --stone:  #6e655a;
+    --serif:  "Playfair Display", "Cormorant Garamond", Didot, Georgia, serif;
+    --italic: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+    --sans:   "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--bone); }
+  html { scroll-behavior: auto; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: var(--sans);
+    overflow-x: hidden;
+    line-height: 1.6;
+    /* Lenis sets transform on html — make sure body's overscroll matches */
+  }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+
+  ::selection { background: var(--amber); color: var(--ink); }
+
+  /* ============================================================
+     PRELOADER
+     ============================================================ */
+  #preloader {
+    position: fixed; inset: 0; z-index: 200;
+    background: var(--ink); color: var(--bone);
+    display: grid; place-items: center;
+    transition: opacity .9s cubic-bezier(.6,.0,.2,1), visibility .9s;
+  }
+  #preloader.is-out { opacity: 0; visibility: hidden; pointer-events: none; }
+  #preloader .pl-inner {
+    text-align: center;
+  }
+  #preloader .pl-mark {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 6vw, 84px);
+    letter-spacing: 0.34em; padding-left: 0.34em;
+  }
+  #preloader .pl-sub {
+    margin-top: 18px;
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone);
+  }
+  #preloader .pl-bar {
+    margin: 26px auto 0; width: 80px; height: 1px; background: rgba(239,233,220,.15); overflow: hidden;
+  }
+  #preloader .pl-bar i {
+    display: block; height: 100%; width: 0%; background: var(--bone);
+    transition: width 1.5s cubic-bezier(.7,.0,.2,1);
+  }
+
+  /* ============================================================
+     CHROME (top nav, side rails)
+     ============================================================ */
+  .chrome-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+    padding: 26px clamp(20px, 4vw, 56px);
+    display: flex; justify-content: space-between; align-items: center;
+    pointer-events: none;
+    mix-blend-mode: difference;
+  }
+  .chrome-nav > * { pointer-events: auto; }
+  .chrome-nav .brand {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 22px; letter-spacing: 0.36em; padding-left: 0.36em;
+    color: var(--bone);
+  }
+  .chrome-nav .nav-link {
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.85;
+    transition: opacity .3s;
+  }
+  .chrome-nav .nav-link:hover { opacity: 1; }
+  .chrome-nav .nav-right {
+    display: flex; align-items: center; gap: 32px;
+  }
+
+  /* Floating side counter */
+  .side-counter {
+    position: fixed; bottom: 32px; left: clamp(20px, 4vw, 56px);
+    z-index: 80; pointer-events: none;
+    mix-blend-mode: difference; color: var(--bone);
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 16px;
+    opacity: 0; transition: opacity .8s;
+  }
+  .side-counter.is-on { opacity: 1; }
+  .side-counter .num {
+    font-family: var(--serif); font-size: 24px; letter-spacing: 0.08em;
+    transition: transform .6s cubic-bezier(.5,.0,.2,1);
+  }
+  .side-counter .lbl { opacity: 0.7; }
+  .side-counter .bar {
+    width: 56px; height: 1px; background: rgba(239,233,220,.3); position: relative;
+  }
+  .side-counter .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bone); width: 0%; transition: width .6s cubic-bezier(.5,.0,.2,1); }
+
+  /* Sound / progress, bottom right */
+  .side-progress {
+    position: fixed; bottom: 32px; right: clamp(20px, 4vw, 56px);
+    z-index: 80; pointer-events: none;
+    mix-blend-mode: difference; color: var(--bone);
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .side-progress .pct {
+    font-family: var(--serif); font-size: 24px; letter-spacing: 0.08em;
+  }
+
+  /* ============================================================
+     HERO
+     ============================================================ */
+  .hero {
+    position: relative; height: 100svh; width: 100%;
+    overflow: hidden;
+    display: grid; place-items: center;
+    color: var(--bone);
+  }
+  .hero__bg {
+    position: absolute; inset: 0; overflow: hidden; z-index: 0;
+  }
+  .hero__bg img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    opacity: 0;
+    transition: opacity 2.4s cubic-bezier(.5,.0,.2,1);
+    transform-origin: 60% 50%;
+    animation: heroKen 16s ease-in-out infinite alternate;
+    will-change: transform, opacity;
+  }
+  .hero__bg img.is-on { opacity: 1; }
+  @keyframes heroKen {
+    from { transform: scale(1.04) translateX(0%); }
+    to   { transform: scale(1.14) translateX(-1.5%); }
+  }
+  .hero__veil {
+    position: absolute; inset: 0; z-index: 1;
+    background:
+      radial-gradient(ellipse at 50% 80%, transparent 0%, rgba(10,8,7,0.6) 70%),
+      linear-gradient(to bottom, rgba(10,8,7,0.55) 0%, rgba(10,8,7,0.25) 35%, rgba(10,8,7,0.45) 70%, rgba(10,8,7,0.85) 100%);
+  }
+  .hero__content {
+    position: relative; z-index: 2; text-align: center; padding: 0 16px;
+    max-width: 1280px;
+  }
+  .hero__year {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.7; margin-bottom: 34px;
+  }
+  .hero__title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(96px, 22vw, 320px);
+    letter-spacing: 0.04em; padding-left: 0.04em;
+    line-height: 0.92;
+    color: var(--bone);
+    text-shadow: 0 4px 60px rgba(0,0,0,0.55);
+  }
+  .hero__subtitle {
+    margin-top: 38px;
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(20px, 2.3vw, 32px);
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.95;
+    display: flex; gap: clamp(14px, 2.5vw, 36px); justify-content: center; flex-wrap: wrap;
+  }
+  .hero__subtitle span:not(:last-child)::after {
+    content: "·"; margin-left: clamp(14px, 2.5vw, 36px); opacity: 0.7;
+  }
+  .hero__scroll {
+    position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+    z-index: 2;
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.7;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .hero__scroll .line { width: 1px; height: 56px; background: linear-gradient(to bottom, var(--bone), transparent); }
+  .hero__scroll .line::after {
+    content: ""; position: absolute; width: 1px; height: 18px;
+    background: var(--bone);
+    animation: scrollDot 2.2s ease-in-out infinite;
+  }
+  @keyframes scrollDot {
+    0%   { transform: translateY(-18px); opacity: 0; }
+    30%  { opacity: 1; }
+    100% { transform: translateY(56px); opacity: 0; }
+  }
+  .hero__dots {
+    position: absolute; bottom: 32px; right: clamp(20px, 4vw, 56px);
+    z-index: 3; display: flex; gap: 8px;
+  }
+  .hero__dots span {
+    width: 22px; height: 1px; background: rgba(239,233,220,.3);
+    transition: background .6s, transform .6s;
+  }
+  .hero__dots span.is-on { background: var(--bone); transform: scaleX(1.6); }
+
+  /* ============================================================
+     INTRO TAGLINE
+     ============================================================ */
+  .intro {
+    padding: clamp(140px, 18vw, 240px) clamp(20px, 5vw, 80px);
+    min-height: 100svh; display: grid; place-items: center;
+    text-align: center;
+    background: var(--ink);
+    position: relative;
+  }
+  .intro__eyebrow {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 36px;
+    display: inline-flex; align-items: center; gap: 14px;
+  }
+  .intro__eyebrow::before,
+  .intro__eyebrow::after {
+    content: ""; width: 32px; height: 1px; background: currentColor; opacity: 0.7;
+  }
+  .intro__h {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 6.4vw, 96px);
+    line-height: 1.04;
+    letter-spacing: -0.012em;
+    color: var(--bone);
+    max-width: 22ch; margin: 0 auto;
+    text-wrap: balance;
+  }
+  .intro__h em {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    color: var(--amber);
+  }
+  .intro__meta {
+    margin-top: 80px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: clamp(20px, 4vw, 80px);
+    max-width: 980px; margin-left: auto; margin-right: auto;
+  }
+  .intro__meta .m {
+    text-align: left;
+    border-top: 1px solid rgba(239,233,220,.18); padding-top: 18px;
+  }
+  .intro__meta .m .l {
+    font-size: 9px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 10px;
+  }
+  .intro__meta .m .v {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(20px, 2vw, 28px);
+    color: var(--bone-2); line-height: 1.3;
+  }
+
+  /* ============================================================
+     CHAPTERS
+     ============================================================ */
+  .chapter {
+    position: relative;
+    height: 100svh;
+    width: 100%;
+    overflow: hidden;
+    background: var(--ink);
+  }
+  .chapter__img-wrap {
+    position: absolute; inset: 0;
+    overflow: hidden;
+    will-change: transform;
+  }
+  .chapter__img {
+    position: absolute; inset: -5%;
+    width: 110%; height: 110%; object-fit: cover;
+    transform: scale(1);
+    will-change: transform;
+  }
+  .chapter__veil {
+    position: absolute; inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(10,8,7,0.78) 0%,
+      rgba(10,8,7,0.32) 38%,
+      rgba(10,8,7,0.18) 60%,
+      rgba(10,8,7,0.85) 100%);
+    pointer-events: none;
+  }
+  .chapter__veil--right {
+    background: linear-gradient(
+      225deg,
+      rgba(10,8,7,0.80) 0%,
+      rgba(10,8,7,0.30) 40%,
+      rgba(10,8,7,0.15) 60%,
+      rgba(10,8,7,0.85) 100%);
+  }
+  .chapter__veil--vert {
+    background: linear-gradient(
+      to bottom,
+      rgba(10,8,7,0.55) 0%,
+      rgba(10,8,7,0.10) 40%,
+      rgba(10,8,7,0.10) 60%,
+      rgba(10,8,7,0.92) 100%);
+  }
+
+  .chapter__num {
+    position: absolute;
+    top: clamp(56px, 8vh, 96px);
+    right: clamp(24px, 5vw, 64px);
+    z-index: 3;
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(120px, 18vw, 240px);
+    line-height: 1; letter-spacing: -0.04em;
+    color: var(--bone); opacity: 0.08;
+    pointer-events: none;
+  }
+
+  .chapter__copy {
+    position: absolute;
+    bottom: clamp(80px, 10vh, 140px);
+    left: clamp(24px, 5vw, 80px);
+    right: clamp(24px, 5vw, 80px);
+    z-index: 3;
+    max-width: 720px;
+    color: var(--bone);
+  }
+  .chapter--right .chapter__copy {
+    left: auto;
+    margin-left: auto;
+    text-align: right;
+  }
+
+  .chapter__eyebrow {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 24px;
+    display: inline-flex; align-items: center; gap: 14px;
+  }
+  .chapter__eyebrow .e-line {
+    width: 40px; height: 1px; background: currentColor; opacity: 0.7;
+  }
+  .chapter__eyebrow .idx {
+    color: var(--bone-2); opacity: 0.8;
+  }
+  .chapter--right .chapter__eyebrow { justify-content: flex-end; }
+
+  .chapter__title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(56px, 9.5vw, 156px);
+    line-height: 0.96; letter-spacing: -0.025em;
+    color: var(--bone);
+    text-shadow: 0 6px 60px rgba(0,0,0,0.4);
+  }
+  .chapter__title em {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    color: var(--amber);
+  }
+  .chapter__text {
+    margin-top: 28px;
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(18px, 1.7vw, 24px);
+    line-height: 1.55;
+    color: var(--bone-2);
+    max-width: 48ch;
+    opacity: 0.92;
+    text-wrap: pretty;
+  }
+  .chapter--right .chapter__text { margin-left: auto; }
+  .chapter__specs {
+    margin-top: 36px;
+    display: flex; gap: clamp(20px, 3vw, 44px);
+    flex-wrap: wrap;
+  }
+  .chapter--right .chapter__specs { justify-content: flex-end; }
+  .chapter__specs .s {
+    text-align: left;
+    border-top: 1px solid rgba(239,233,220,.25);
+    padding-top: 12px;
+    min-width: 110px;
+  }
+  .chapter__specs .s .l {
+    font-size: 9px; letter-spacing: 0.36em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 4px;
+  }
+  .chapter__specs .s .v {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: 18px;
+    color: var(--bone-2);
+  }
+
+  /* Reveal-ready state (initial; GSAP animates these to 0/1) */
+  .reveal-y { opacity: 0; transform: translateY(40px); filter: blur(8px); }
+  .reveal-x { opacity: 0; transform: translateX(-40px); }
+
+  /* ============================================================
+     OUTRO / CONTACT
+     ============================================================ */
+  .outro {
+    min-height: 100svh;
+    padding: clamp(120px, 16vw, 200px) clamp(24px, 5vw, 80px);
+    background: var(--ink);
+    display: grid; place-items: center; text-align: center;
+    position: relative;
+  }
+  .outro::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(198,144,82,0.16) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .outro__inner { position: relative; z-index: 2; max-width: 1100px; }
+  .outro__eyebrow {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 32px;
+  }
+  .outro__h {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(48px, 7vw, 120px);
+    line-height: 0.98; letter-spacing: -0.02em;
+    color: var(--bone);
+    text-wrap: balance;
+  }
+  .outro__h em {
+    font-family: var(--italic); font-style: italic; font-weight: 300; color: var(--amber);
+  }
+  .outro__p {
+    margin-top: 36px;
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(20px, 2.1vw, 28px);
+    color: var(--bone-2); max-width: 56ch; margin-left: auto; margin-right: auto;
+    line-height: 1.55;
+  }
+  .outro__btn {
+    margin-top: 56px;
+    display: inline-flex; align-items: center; gap: 14px;
+    padding: 18px 36px;
+    border: 1px solid var(--bone);
+    color: var(--bone);
+    font-size: 11px; letter-spacing: 0.36em; text-transform: uppercase;
+    transition: background .35s, color .35s, padding .35s;
+  }
+  .outro__btn:hover { background: var(--bone); color: var(--ink); padding-right: 42px; }
+  .outro__btn .arr { transition: transform .35s; }
+  .outro__btn:hover .arr { transform: translateX(4px); }
+
+  .outro__meta {
+    margin-top: 100px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: clamp(20px, 4vw, 80px);
+    text-align: left;
+  }
+  .outro__meta .m {
+    border-top: 1px solid rgba(239,233,220,.18); padding-top: 18px;
+  }
+  .outro__meta .m .l {
+    font-size: 9px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 10px;
+  }
+  .outro__meta .m .v {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(18px, 1.8vw, 22px);
+    color: var(--bone-2);
+  }
+
+  /* Footer */
+  .foot {
+    padding: 56px clamp(24px, 5vw, 80px) 32px;
+    background: var(--ink);
+    border-top: 1px solid rgba(239,233,220,.10);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 20px;
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone);
+  }
+  .foot .brand {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 18px; letter-spacing: 0.36em; padding-left: 0.36em;
+    color: var(--bone-2);
+  }
+
+  /* ============================================================
+     MOBILE
+     ============================================================ */
+  @media (max-width: 760px) {
+    .chrome-nav { padding: 18px 18px; }
+    .chrome-nav .nav-right { gap: 18px; }
+    .chrome-nav .nav-link:nth-child(2) { display: none; }
+    .side-counter, .side-progress { font-size: 9px; gap: 10px; bottom: 18px; }
+    .hero__subtitle { font-size: 13px; letter-spacing: 0.28em; gap: 8px; }
+    .hero__subtitle span:not(:last-child)::after { margin-left: 8px; }
+    .hero__title { font-size: 26vw; }
+    .hero__year { font-size: 9px; letter-spacing: 0.34em; margin-bottom: 24px; }
+    .hero__scroll { bottom: 26px; }
+    .hero__scroll .line { height: 40px; }
+    .hero__dots { display: none; }
+    .intro__meta { grid-template-columns: 1fr; gap: 22px; }
+    .intro__h { font-size: 38px; line-height: 1.08; max-width: 18ch; }
+    .chapter__num { font-size: 36vw; top: 24px; right: 16px; opacity: 0.1; }
+    .chapter__copy {
+      left: 20px; right: 20px; bottom: 60px;
+    }
+    .chapter--right .chapter__copy { text-align: left; }
+    .chapter--right .chapter__eyebrow { justify-content: flex-start; }
+    .chapter--right .chapter__text { margin-left: 0; }
+    .chapter--right .chapter__specs { justify-content: flex-start; }
+    .chapter__title { font-size: 17vw; line-height: 0.98; }
+    .chapter__text { font-size: 16px; }
+    .chapter__specs .s { min-width: 90px; }
+    .chapter__specs .s .v { font-size: 15px; }
+    .outro__meta { grid-template-columns: 1fr; gap: 24px; }
+    .outro__h { font-size: 12vw; }
+    .outro__p { font-size: 17px; }
+  }
+
+  /* Reduce motion */
+  @media (prefers-reduced-motion: reduce) {
+    .hero__bg img { animation: none; }
+    * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============== Preloader ============== -->
+<div id="preloader">
+  <div class="pl-inner">
+    <div class="pl-mark">VITARA</div>
+    <div class="pl-sub">Atmosphere · Resonance · Texture</div>
+    <div class="pl-bar"><i id="pl-bar-i"></i></div>
+  </div>
+</div>
+
+<!-- ============== Chrome Nav ============== -->
+<nav class="chrome-nav">
+  <a href="#" class="brand">VITARA</a>
+  <div class="nav-right">
+    <a class="nav-link" href="#intro">Studio</a>
+    <a class="nav-link" href="#chapter-01">Residences</a>
+    <a class="nav-link" href="#outro">Begin</a>
+  </div>
+</nav>
+
+<!-- Fixed counter (becomes visible once we enter chapters) -->
+<div class="side-counter" id="side-counter">
+  <span class="num" id="ctr-num">01</span>
+  <span class="bar"><i id="ctr-bar"></i></span>
+  <span class="lbl" id="ctr-lbl">Exterior</span>
+</div>
+<div class="side-progress">
+  <span class="lbl">Progress</span>
+  <span class="pct" id="prog-pct">0%</span>
+</div>
+
+<!-- ============== HERO ============== -->
+<section class="hero" data-screen-label="00 Hero">
+  <div class="hero__bg" id="hero-bg">
+    <!-- images injected by JS -->
+  </div>
+  <div class="hero__veil"></div>
+  <div class="hero__content">
+    <div class="hero__year">MMXXVI · Residential Studio · est. 2014</div>
+    <h1 class="hero__title">VITARA</h1>
+    <div class="hero__subtitle">
+      <span>Atmosphere</span><span>Resonance</span><span>Texture</span>
+    </div>
+  </div>
+  <div class="hero__dots" id="hero-dots"></div>
+  <div class="hero__scroll">
+    <span>scroll to enter</span>
+    <div class="line"></div>
+    <span>10 chapters</span>
+  </div>
+</section>
+
+<!-- ============== INTRO ============== -->
+<section class="intro" id="intro" data-screen-label="01 Intro">
+  <div>
+    <div class="intro__eyebrow reveal-y">Studio Note · Residence № 014</div>
+    <h2 class="intro__h reveal-y">
+      A home is not a building.<br/>
+      It is the <em>quietest</em>, <em>most certain</em><br/>
+      thing a person owns.
+    </h2>
+    <div class="intro__meta">
+      <div class="m reveal-y"><div class="l">In Practice</div><div class="v">Twelve years.<br/>Three studios.</div></div>
+      <div class="m reveal-y"><div class="l">Per Year</div><div class="v">Nine private<br/>commissions.</div></div>
+      <div class="m reveal-y"><div class="l">Hand-over</div><div class="v">One key,<br/>programmed.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== CHAPTERS ============== -->
+<!-- 01 EXTERIOR -->
+<section class="chapter" id="chapter-01" data-screen-label="02 Exterior">
+  <div class="chapter__img-wrap" data-parallax="0.15" data-ken="0.12">
+    <img class="chapter__img" alt="Modern luxury villa exterior at golden hour"
+         src="https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=2200&q=85"
+         loading="eager" decoding="async" />
+  </div>
+  <div class="chapter__veil"></div>
+  <div class="chapter__num">01</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="e-line"></span><span class="idx">Chapter I · South Aspect</span></div>
+    <h2 class="chapter__title reveal-y"><em>Exterior.</em></h2>
+    <p class="chapter__text reveal-y">A long, low cantilever held against the evening — travertine, water, shadow. The house is read in silence before it is entered.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Plot</div><div class="v">1.4 acres</div></div>
+      <div class="s reveal-y"><div class="l">Façade</div><div class="v">Travertine</div></div>
+      <div class="s reveal-y"><div class="l">Cantilever</div><div class="v">9.2m</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 KITCHEN -->
+<section class="chapter chapter--right" id="chapter-02" data-screen-label="03 Kitchen">
+  <div class="chapter__img-wrap" data-parallax="0.18" data-ken="0.14">
+    <img class="chapter__img" alt="Marble kitchen with walnut joinery"
+         src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil chapter__veil--right"></div>
+  <div class="chapter__num">02</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="idx">Chapter II · Galley I</span><span class="e-line"></span></div>
+    <h2 class="chapter__title reveal-y"><em>Kitchen.</em></h2>
+    <p class="chapter__text reveal-y">Calacatta islands flank a chef's range. The secondary kitchen disappears behind a steel wall. Storage is engineered; sound, dampened.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Stone</div><div class="v">Calacatta</div></div>
+      <div class="s reveal-y"><div class="l">Hood</div><div class="v">Recessed</div></div>
+      <div class="s reveal-y"><div class="l">Joinery</div><div class="v">Walnut</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 LIVING -->
+<section class="chapter" id="chapter-03" data-screen-label="04 Living">
+  <div class="chapter__img-wrap" data-parallax="0.16" data-ken="0.13">
+    <img class="chapter__img" alt="Luxury living room with floor-to-ceiling glass"
+         src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil"></div>
+  <div class="chapter__num">03</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="e-line"></span><span class="idx">Chapter III · Salon I</span></div>
+    <h2 class="chapter__title reveal-y"><em>Living.</em></h2>
+    <p class="chapter__text reveal-y">Three depths: hearth, gathering, and view. Bouclé and saddle leather; walnut underfoot. At noon, the glass dissolves into the garden.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Ceiling</div><div class="v">3.8m</div></div>
+      <div class="s reveal-y"><div class="l">Glass</div><div class="v">Frameless</div></div>
+      <div class="s reveal-y"><div class="l">Floor</div><div class="v">Smoked walnut</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 THEATRE -->
+<section class="chapter chapter--right" id="chapter-04" data-screen-label="05 Theatre">
+  <div class="chapter__img-wrap" data-parallax="0.18" data-ken="0.12">
+    <img class="chapter__img" alt="Private home theatre with leather seating"
+         src="https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil chapter__veil--right"></div>
+  <div class="chapter__num">04</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="idx">Chapter IV · Lower Suite</span><span class="e-line"></span></div>
+    <h2 class="chapter__title reveal-y"><em>Theatre.</em></h2>
+    <p class="chapter__text reveal-y">A dark room held for one bright image. Acoustic walnut panelling, modular leather seating for nine, Atmos overhead — isolated from the rest of the home.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Screen</div><div class="v">5.6m</div></div>
+      <div class="s reveal-y"><div class="l">Audio</div><div class="v">Atmos 7.1.4</div></div>
+      <div class="s reveal-y"><div class="l">Seats</div><div class="v">Nine</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 BEDROOM -->
+<section class="chapter" id="chapter-05" data-screen-label="06 Bedroom">
+  <div class="chapter__img-wrap" data-parallax="0.16" data-ken="0.14">
+    <img class="chapter__img" alt="Master bedroom with linen drapery and warm light"
+         src="https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil"></div>
+  <div class="chapter__num">05</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="e-line"></span><span class="idx">Chapter V · Level 02</span></div>
+    <h2 class="chapter__title reveal-y"><em>Bedroom.</em></h2>
+    <p class="chapter__text reveal-y">Tadelakt in raw umber. Belgian linen floor to ceiling. Brass picture lights, dim-to-warm. The room is composed to end the day, slowly.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Walls</div><div class="v">Tadelakt</div></div>
+      <div class="s reveal-y"><div class="l">Drape</div><div class="v">Belgian linen</div></div>
+      <div class="s reveal-y"><div class="l">Lighting</div><div class="v">1800K low</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 WARDROBE -->
+<section class="chapter chapter--right" id="chapter-06" data-screen-label="07 Wardrobe">
+  <div class="chapter__img-wrap" data-parallax="0.18" data-ken="0.13">
+    <img class="chapter__img" alt="Walk-in wardrobe with walnut joinery"
+         src="https://images.unsplash.com/photo-1558211583-d26f610c1eb1?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil chapter__veil--right"></div>
+  <div class="chapter__num">06</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="idx">Chapter VI · West Wing</span><span class="e-line"></span></div>
+    <h2 class="chapter__title reveal-y"><em>Wardrobe.</em></h2>
+    <p class="chapter__text reveal-y">The dressing room as a private library. Walnut joinery to 3.4m, LED rails, a central island of leather and brass. Every drawer pulls without a handle.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Run</div><div class="v">11.6m</div></div>
+      <div class="s reveal-y"><div class="l">Wood</div><div class="v">Walnut</div></div>
+      <div class="s reveal-y"><div class="l">RH</div><div class="v">48%</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 07 COURTYARD -->
+<section class="chapter" id="chapter-07" data-screen-label="08 Courtyard">
+  <div class="chapter__img-wrap" data-parallax="0.16" data-ken="0.15">
+    <img class="chapter__img" alt="Internal courtyard with tree and stone"
+         src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil"></div>
+  <div class="chapter__num">07</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="e-line"></span><span class="idx">Chapter VII · West Cut</span></div>
+    <h2 class="chapter__title reveal-y"><em>Courtyard.</em></h2>
+    <p class="chapter__text reveal-y">A single Khejri tree, a bed of river pebbles, a wash of afternoon light. The courtyard is the house's quietest room — the one without a roof.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Tree</div><div class="v">Khejri</div></div>
+      <div class="s reveal-y"><div class="l">Ground</div><div class="v">River pebble</div></div>
+      <div class="s reveal-y"><div class="l">Wall</div><div class="v">Travertine</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 BATHROOM -->
+<section class="chapter chapter--right" id="chapter-08" data-screen-label="09 Bathroom">
+  <div class="chapter__img-wrap" data-parallax="0.18" data-ken="0.13">
+    <img class="chapter__img" alt="Luxury bathroom with travertine and freestanding tub"
+         src="https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil chapter__veil--right"></div>
+  <div class="chapter__num">08</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="idx">Chapter VIII · East Wing</span><span class="e-line"></span></div>
+    <h2 class="chapter__title reveal-y"><em>Bathroom.</em></h2>
+    <p class="chapter__text reveal-y">A travertine monolith holds the basin. The tub is carved from a single block. Rain, mist, and steam are programmed as moods — never modes.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Tub</div><div class="v">Monolithic</div></div>
+      <div class="s reveal-y"><div class="l">Stone</div><div class="v">Travertine</div></div>
+      <div class="s reveal-y"><div class="l">Steam</div><div class="v">Programmed</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 09 POOL -->
+<section class="chapter" id="chapter-09" data-screen-label="10 Pool">
+  <div class="chapter__img-wrap" data-parallax="0.16" data-ken="0.14">
+    <img class="chapter__img" alt="Infinity pool at dusk reflecting villa"
+         src="https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil"></div>
+  <div class="chapter__num">09</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="e-line"></span><span class="idx">Chapter IX · South Terrace</span></div>
+    <h2 class="chapter__title reveal-y"><em>Pool.</em></h2>
+    <p class="chapter__text reveal-y">A twenty-two metre mirror runs the full elevation of the south façade. A negative edge releases to the lower terrace. Heated, saline, almost silent.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Length</div><div class="v">22m</div></div>
+      <div class="s reveal-y"><div class="l">Edge</div><div class="v">Negative</div></div>
+      <div class="s reveal-y"><div class="l">Treatment</div><div class="v">Saline</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 NIGHT FAÇADE -->
+<section class="chapter chapter--right" id="chapter-10" data-screen-label="11 Night Façade">
+  <div class="chapter__img-wrap" data-parallax="0.2" data-ken="0.12">
+    <img class="chapter__img" alt="Villa at night with warm interior lighting"
+         src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2200&q=85"
+         loading="lazy" decoding="async" />
+  </div>
+  <div class="chapter__veil chapter__veil--right"></div>
+  <div class="chapter__num">10</div>
+  <div class="chapter__copy">
+    <div class="chapter__eyebrow reveal-y"><span class="idx">Chapter X · 21:14 · Lumen</span><span class="e-line"></span></div>
+    <h2 class="chapter__title reveal-y"><em>Night.</em></h2>
+    <p class="chapter__text reveal-y">Six lighting scenes, each programmed to circadian rhythm. The façade is read, never illuminated. Dim-to-warm to 1800K at midnight.</p>
+    <div class="chapter__specs">
+      <div class="s reveal-y"><div class="l">Scenes</div><div class="v">Six</div></div>
+      <div class="s reveal-y"><div class="l">Low</div><div class="v">1800K</div></div>
+      <div class="s reveal-y"><div class="l">Driver</div><div class="v">DALI</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== OUTRO ============== -->
+<section class="outro" id="outro" data-screen-label="12 Begin">
+  <div class="outro__inner">
+    <div class="outro__eyebrow reveal-y">By Introduction · MMXXVI</div>
+    <h2 class="outro__h reveal-y">
+      Begin a residence,<br/>
+      <em>by introduction.</em>
+    </h2>
+    <p class="outro__p reveal-y">We accept nine private commissions each year. Every home is led by a principal-architect and a team of seven, from first sketch through final scene.</p>
+    <a class="outro__btn reveal-y" href="mailto:residences@vitara.studio">Begin a residence <span class="arr">↗</span></a>
+    <div class="outro__meta">
+      <div class="m reveal-y"><div class="l">Bengaluru</div><div class="v">14, Lavelle Mews<br/>Karnataka, 560001</div></div>
+      <div class="m reveal-y"><div class="l">Lisbon</div><div class="v">R. das Janelas<br/>Verdes 4</div></div>
+      <div class="m reveal-y"><div class="l">Dubai</div><div class="v">City Walk<br/>Building 7</div></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <span class="brand">VITARA</span>
+  <span>© Vitara Residences · MMXXVI · All rooms reserved</span>
+  <span>Composed in Bengaluru</span>
+</footer>
+
+<!-- ============================================================
+     LIBS
+     ============================================================ -->
+<script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://unpkg.com/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
+
+<script>
+/* ============================================================
+   VITARA — Cinematic editorial
+   Hero carousel + ScrollTrigger reveals + parallax + Ken Burns
+   + chapter counter + Lenis smooth scroll
+   ============================================================ */
+(function () {
+  /* ---------- HERO IMAGE CAROUSEL ---------- */
+  const heroSrcs = [
+    "https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=2400&q=88",
+    "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?auto=format&fit=crop&w=2400&q=88",
+    "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=2400&q=88",
+    "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=2400&q=88",
+    "https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=2400&q=88",
+    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2400&q=88",
+    "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?auto=format&fit=crop&w=2400&q=88",
+    "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=2400&q=88"
+  ];
+  const heroBg = document.getElementById('hero-bg');
+  const dotsHost = document.getElementById('hero-dots');
+  const imgs = heroSrcs.map((src, i) => {
+    const img = document.createElement('img');
+    img.src = src; img.alt = "Vitara residence"; img.decoding = 'async';
+    if (i === 0) { img.classList.add('is-on'); img.fetchPriority = 'high'; img.loading = 'eager'; }
+    else img.loading = 'lazy';
+    heroBg.appendChild(img);
+    const dot = document.createElement('span');
+    if (i === 0) dot.classList.add('is-on');
+    dotsHost.appendChild(dot);
+    return img;
+  });
+  const dots = Array.from(dotsHost.children);
+  let active = 0;
+  function nextHero() {
+    const prev = active;
+    active = (active + 1) % imgs.length;
+    imgs[prev].classList.remove('is-on');
+    imgs[active].classList.add('is-on');
+    dots[prev].classList.remove('is-on');
+    dots[active].classList.add('is-on');
+  }
+  setInterval(nextHero, 5400);
+
+  /* ---------- PRELOADER ---------- */
+  const preEl = document.getElementById('preloader');
+  const preBar = document.getElementById('pl-bar-i');
+  // animate bar to 100%
+  requestAnimationFrame(() => { preBar.style.width = '100%'; });
+  // wait for first hero img to load
+  function hidePre() { preEl.classList.add('is-out'); document.body.classList.add('is-ready'); }
+  if (imgs[0].complete) setTimeout(hidePre, 900);
+  else imgs[0].addEventListener('load', () => setTimeout(hidePre, 600), { once: true });
+  // hard fallback
+  setTimeout(hidePre, 2800);
+
+  /* ---------- LENIS ---------- */
+  let lenis;
+  if (window.Lenis && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    lenis = new window.Lenis({
+      duration: 1.4,
+      easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+      lerp: 0.085,
+      smoothTouch: false,
+    });
+    function raf(t) { lenis.raf(t); requestAnimationFrame(raf); }
+    requestAnimationFrame(raf);
+  }
+
+  /* ---------- GSAP ---------- */
+  if (!window.gsap || !window.ScrollTrigger) return;
+  const gsap = window.gsap;
+  gsap.registerPlugin(window.ScrollTrigger);
+  if (lenis) {
+    lenis.on('scroll', window.ScrollTrigger.update);
+    gsap.ticker.lagSmoothing(0);
+  }
+
+  // Reveal-y elements
+  gsap.utils.toArray('.reveal-y').forEach(el => {
+    const parent = el.closest('section');
+    gsap.to(el, {
+      opacity: 1, y: 0, filter: 'blur(0px)',
+      duration: 1.2, ease: 'power3.out',
+      scrollTrigger: {
+        trigger: el,
+        start: 'top 88%',
+        end: 'top 60%',
+        toggleActions: 'play none none reverse',
+      },
+    });
+  });
+
+  // Stagger reveal-y inside each chapter copy
+  gsap.utils.toArray('.chapter').forEach(ch => {
+    const els = ch.querySelectorAll('.chapter__copy .reveal-y');
+    if (!els.length) return;
+    gsap.to(els, {
+      opacity: 1, y: 0, filter: 'blur(0px)',
+      duration: 1.1, ease: 'power3.out',
+      stagger: 0.10,
+      scrollTrigger: {
+        trigger: ch,
+        start: 'top 72%',
+        end: 'top 25%',
+        toggleActions: 'play none none reverse',
+      },
+    });
+    // Exit fade
+    gsap.to(els, {
+      opacity: 0, y: -40, filter: 'blur(6px)',
+      ease: 'power2.in',
+      scrollTrigger: {
+        trigger: ch,
+        start: 'bottom 60%',
+        end: 'bottom 20%',
+        scrub: 0.6,
+      },
+    });
+  });
+
+  // Parallax + Ken Burns on chapter images
+  gsap.utils.toArray('.chapter__img-wrap').forEach(wrap => {
+    const img = wrap.querySelector('.chapter__img');
+    const parallaxAmt = parseFloat(wrap.getAttribute('data-parallax') || '0.15');
+    const kenAmt = parseFloat(wrap.getAttribute('data-ken') || '0.12');
+    // Parallax on wrap (translate)
+    gsap.fromTo(wrap, { yPercent: -parallaxAmt * 30 }, {
+      yPercent: parallaxAmt * 30,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: wrap.parentElement,
+        start: 'top bottom',
+        end: 'bottom top',
+        scrub: true,
+      }
+    });
+    // Ken Burns slow zoom on img
+    gsap.fromTo(img, { scale: 1.0 }, {
+      scale: 1 + kenAmt,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: wrap.parentElement,
+        start: 'top bottom',
+        end: 'bottom top',
+        scrub: 1.5,
+      }
+    });
+  });
+
+  /* ---------- Chapter counter + progress ---------- */
+  const ctrNum = document.getElementById('ctr-num');
+  const ctrLbl = document.getElementById('ctr-lbl');
+  const ctrBar = document.getElementById('ctr-bar');
+  const ctrHost = document.getElementById('side-counter');
+  const progPct = document.getElementById('prog-pct');
+
+  const chapters = Array.from(document.querySelectorAll('.chapter'));
+  const labels = ['Exterior', 'Kitchen', 'Living', 'Theatre', 'Bedroom', 'Wardrobe', 'Courtyard', 'Bathroom', 'Pool', 'Night Façade'];
+  let activeIdx = -1;
+  chapters.forEach((ch, i) => {
+    window.ScrollTrigger.create({
+      trigger: ch,
+      start: 'top 60%',
+      end: 'bottom 40%',
+      onEnter: () => setActive(i),
+      onEnterBack: () => setActive(i),
+    });
+  });
+  function setActive(i) {
+    activeIdx = i;
+    ctrNum.textContent = String(i + 1).padStart(2, '0');
+    ctrLbl.textContent = labels[i];
+    ctrBar.style.width = `${((i + 1) / chapters.length) * 100}%`;
+    ctrHost.classList.add('is-on');
+  }
+  // Hide counter outside chapter range
+  window.ScrollTrigger.create({
+    trigger: '#chapter-01',
+    start: 'top 95%',
+    end: 'bottom -10%',
+    endTrigger: '#chapter-10',
+    onLeave: () => ctrHost.classList.remove('is-on'),
+    onEnter: () => ctrHost.classList.add('is-on'),
+    onEnterBack: () => ctrHost.classList.add('is-on'),
+    onLeaveBack: () => ctrHost.classList.remove('is-on'),
+  });
+
+  // Progress %
+  function tickProgress() {
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    const p = Math.max(0, Math.min(1, (window.scrollY || 0) / h));
+    progPct.textContent = `${Math.round(p * 100)}%`;
+    requestAnimationFrame(tickProgress);
+  }
+  requestAnimationFrame(tickProgress);
+
+  /* ---------- Hero subtitle slow float ---------- */
+  gsap.to('.hero__subtitle', { y: -10, repeat: -1, yoyo: true, duration: 4, ease: 'sine.inOut' });
+
+  /* ---------- Image fail recovery: swap to safe placeholder if image errors ---------- */
+  document.querySelectorAll('img').forEach(img => {
+    img.addEventListener('error', () => {
+      // Fallback to a dark warm gradient placeholder via SVG data URL
+      img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#1c160e"/>
+              <stop offset="0.5" stop-color="#352a1c"/>
+              <stop offset="1" stop-color="#0a0807"/>
+            </linearGradient>
+          </defs>
+          <rect width="1600" height="900" fill="url(#g)"/>
+        </svg>`);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

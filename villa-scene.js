@@ -1,46 +1,52 @@
 /* ============================================================
-   VITARA — Cinematic Villa Scene v2
-   - Animated sky shader (sun + horizon gradient)
-   - 14-keyframe camera path through entire villa
-   - Day → golden → dusk → night transition
-   - Rich villa: ground floor, cantilever, interior rooms,
-     furniture volumes, columns, pool with fake reflection,
-     palms with fronds, mountains, particles & fireflies
-   - Mouse parallax + inertia + micro camera shake + FOV
-   - Single fixed canvas; mounted once, drives whole site
+   VITARA — Cinematic Villa Scene v3
+   - Procedural PBR materials (travertine, walnut, marble, bouclé, ipe…)
+   - PMREM env baking from sky shader (true reflections on glass/marble/bronze/water)
+   - 18 cinematic camera stops with Catmull-Rom spline interpolation
+   - Custom post-FX: bloom + grain + vignette + chromatic aberration + tone mapping
+   - Lens breathing, micro shake, FOV variation
+   - Day → noon → golden → dusk → night palette + interior light response
+   - Clouds, birds, fireflies, weather particles
+   - Mobile path: simpler camera, lower res
    ============================================================ */
 (function () {
   const VillaScene = {
     init(container, opts = {}) {
       if (!window.THREE) { console.warn("THREE not loaded"); return null; }
+      if (!window.VitaraTextures || !window.VitaraBuild) {
+        console.warn("Vitara texture/build modules not loaded"); return null;
+      }
       const THREE = window.THREE;
       const isMobile = window.matchMedia('(max-width: 760px)').matches;
       const lowFi = opts.lowFi ?? isMobile;
 
+      /* =============== SCENE / RENDERER =============== */
       const scene = new THREE.Scene();
-      const fogCol = new THREE.Color(0xd8d2c4);
-      scene.fog = new THREE.FogExp2(fogCol.getHex(), 0.012);
+      scene.fog = new THREE.FogExp2(0xd8d2c4, 0.011);
 
       const W = container.clientWidth, H = container.clientHeight;
-      const camera = new THREE.PerspectiveCamera(38, W / H, 0.05, 400);
+      const camera = new THREE.PerspectiveCamera(38, W / H, 0.05, 500);
       camera.position.set(38, 18, 50);
 
       const renderer = new THREE.WebGLRenderer({
         antialias: !lowFi, alpha: true,
         powerPreference: 'high-performance',
-        preserveDrawingBuffer: true,
+        preserveDrawingBuffer: false,
       });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowFi ? 1.25 : 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowFi ? 1.25 : 1.85));
       renderer.setSize(W, H);
       renderer.setClearColor(0x000000, 0);
-      renderer.shadowMap.enabled = !lowFi;
+      renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.05;
       container.appendChild(renderer.domElement);
 
-      /* ====================== SKY SHADER ====================== */
+      // build materials (cached)
+      const M = window.VitaraTextures.buildMaterials();
+
+      /* =============== SKY SHADER =============== */
       const skyUniforms = {
         uTop:    { value: new THREE.Color(0x6a93c0) },
         uMid:    { value: new THREE.Color(0xd8d2c4) },
@@ -48,8 +54,8 @@
         uSunDir: { value: new THREE.Vector3(-0.5, 0.7, 0.3) },
         uSunCol: { value: new THREE.Color(0xffe6b8) },
         uStars:  { value: 0.0 },
+        uTime:   { value: 0.0 },
       };
-      const skyGeo = new THREE.SphereGeometry(220, 32, 16);
       const skyMat = new THREE.ShaderMaterial({
         side: THREE.BackSide,
         uniforms: skyUniforms,
@@ -63,97 +69,105 @@
         fragmentShader: `
           uniform vec3 uTop, uMid, uBottom, uSunCol;
           uniform vec3 uSunDir;
-          uniform float uStars;
+          uniform float uStars, uTime;
           varying vec3 vWorld;
-
           float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898,78.233,45.164))) * 43758.5453); }
-
+          // simple 3d-ish value noise for clouds
+          float noise2(vec2 p) {
+            vec2 i = floor(p), f = fract(p);
+            float a = hash(vec3(i, 0.0));
+            float b = hash(vec3(i + vec2(1.0,0.0), 0.0));
+            float c = hash(vec3(i + vec2(0.0,1.0), 0.0));
+            float d = hash(vec3(i + vec2(1.0,1.0), 0.0));
+            vec2 u = f*f*(3.0-2.0*f);
+            return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
+          }
+          float fbm(vec2 p) {
+            float v = 0.0, a = 0.5;
+            for (int i=0;i<5;i++) { v += a*noise2(p); p *= 2.07; a *= 0.5; }
+            return v;
+          }
           void main() {
             vec3 dir = normalize(vWorld);
             float h = clamp(dir.y, -0.2, 1.0);
             vec3 col;
-            if (h > 0.0) {
-              col = mix(uMid, uTop, smoothstep(0.0, 0.7, h));
-            } else {
-              col = mix(uMid, uBottom, smoothstep(0.0, 0.25, -h));
-            }
+            if (h > 0.0) col = mix(uMid, uTop, smoothstep(0.0, 0.7, h));
+            else         col = mix(uMid, uBottom, smoothstep(0.0, 0.25, -h));
             // Sun disc + halo
-            float s = max(0.0, dot(dir, normalize(uSunDir)));
-            float disc = smoothstep(0.9985, 0.9998, s);
-            float halo = pow(s, 90.0) * 0.55;
-            col += uSunCol * (disc * 2.2 + halo);
-            // Subtle horizon bloom
-            col += uSunCol * pow(max(0.0, 1.0 - abs(dir.y)*2.0), 6.0) * 0.18 * max(0.0, uSunDir.y);
-            // Stars (visible at night)
-            if (uStars > 0.01 && dir.y > 0.0) {
-              vec3 p = floor(dir * 220.0);
+            vec3 sd = normalize(uSunDir);
+            float s = max(0.0, dot(dir, sd));
+            float disc = smoothstep(0.9988, 0.9999, s);
+            float halo = pow(s, 80.0) * 0.55;
+            col += uSunCol * (disc * 3.0 + halo);
+            // Atmospheric scattering hint near sun
+            col += uSunCol * pow(max(0.0, 1.0 - abs(dir.y)*1.6), 4.0) * 0.18 * max(0.0, sd.y);
+            // Clouds (only above horizon)
+            if (dir.y > 0.05) {
+              vec2 cp = dir.xz / (dir.y + 0.4) * 1.2 + vec2(uTime*0.008, uTime*0.004);
+              float cloud = smoothstep(0.45, 0.85, fbm(cp));
+              cloud *= smoothstep(0.05, 0.3, dir.y);
+              vec3 cloudCol = mix(uMid, vec3(1.0), 0.35) + uSunCol * 0.18;
+              col = mix(col, cloudCol, cloud * (0.55 + 0.4 * max(0.0, sd.y)));
+              // sun edge on clouds
+              col += uSunCol * cloud * pow(s, 8.0) * 0.4;
+            }
+            // Stars
+            if (uStars > 0.01 && dir.y > 0.05) {
+              vec3 p = floor(dir * 260.0);
               float n = hash(p);
-              float star = step(0.9985, n) * uStars;
-              col += vec3(star * 1.4);
+              float star = step(0.9988, n) * uStars;
+              col += vec3(star * 1.5);
+              // twinkle
+              float tw = sin(uTime * 2.0 + n * 30.0) * 0.5 + 0.5;
+              col += vec3(star * tw * 0.6);
             }
             gl_FragColor = vec4(col, 1.0);
           }`,
       });
-      const sky = new THREE.Mesh(skyGeo, skyMat);
+      const sky = new THREE.Mesh(new THREE.SphereGeometry(260, 48, 24), skyMat);
       scene.add(sky);
 
-      /* ====================== LIGHTING ====================== */
-      const hemi = new THREE.HemisphereLight(0xfff1d0, 0x705a44, 0.55);
-      scene.add(hemi);
+      /* =============== ENV MAP (PMREM from sky) =============== */
+      // Bake the sky into a cubemap via CubeCamera and feed through PMREMGenerator.
+      // Re-bake when day phase changes by ≥ 0.06.
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader();
+      const envScene = new THREE.Scene();
+      const envSky = new THREE.Mesh(new THREE.SphereGeometry(260, 32, 16), skyMat); // shares material
+      envScene.add(envSky);
+      let lastBakePhase = -1;
+      function bakeEnv(phase) {
+        if (Math.abs(phase - lastBakePhase) < 0.05) return;
+        lastBakePhase = phase;
+        const rt = pmrem.fromScene(envScene, 0.04);
+        scene.environment = rt.texture;
+      }
+      bakeEnv(0.18);
 
+      /* =============== LIGHTING =============== */
+      const hemi = new THREE.HemisphereLight(0xfff1d0, 0x6a5642, 0.45);
+      scene.add(hemi);
       const sun = new THREE.DirectionalLight(0xffe6b8, 1.6);
       sun.position.set(-22, 30, 18);
-      sun.castShadow = !lowFi;
-      if (sun.castShadow) {
-        sun.shadow.mapSize.set(lowFi ? 512 : 1024, lowFi ? 512 : 1024);
-        const s = sun.shadow.camera;
-        s.left = -32; s.right = 32; s.top = 32; s.bottom = -32;
-        s.near = 0.5; s.far = 90;
-        sun.shadow.bias = -0.0005;
-      }
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(lowFi ? 1024 : 2048, lowFi ? 1024 : 2048);
+      const sc = sun.shadow.camera;
+      sc.left = -40; sc.right = 40; sc.top = 40; sc.bottom = -40;
+      sc.near = 0.5; sc.far = 110;
+      sun.shadow.bias = -0.0004;
+      sun.shadow.radius = 4;
       scene.add(sun);
 
-      // Interior lights (room-by-room warm sources)
-      const interiorLights = [];
-      function addInteriorLight(x, y, z, color = 0xffc183, intensity = 0.0, distance = 10) {
-        const l = new THREE.PointLight(color, intensity, distance, 2);
-        l.position.set(x, y, z);
-        scene.add(l);
-        interiorLights.push(l);
-        return l;
-      }
-      addInteriorLight(0, 2.4, 1.5);   // living
-      addInteriorLight(-3.6, 2.4, -1); // dining
-      addInteriorLight(3.6, 2.4, -1);  // kitchen
-      addInteriorLight(0, 5.2, 1.5);   // master
-      addInteriorLight(-3.6, 5.2, -1); // wardrobe
-      addInteriorLight(3.6, 5.2, -1, 0xffe2b8); // bathroom
-      addInteriorLight(0, 1.0, 6.5, 0x9ec9d4, 0.0, 8); // pool light
-      addInteriorLight(-7, 1.4, 4, 0xffd09a, 0.0, 6); // garden uplight
+      // Bounce light from pool / south-side
+      const bounce = new THREE.DirectionalLight(0x9ec0d4, 0.25);
+      bounce.position.set(0, 6, 30);
+      scene.add(bounce);
 
-      /* ====================== MATERIALS ====================== */
-      const matStoneWarm = new THREE.MeshStandardMaterial({ color: 0xeadfca, roughness: 0.78, metalness: 0.02 });
-      const matStoneCool = new THREE.MeshStandardMaterial({ color: 0xddd1b8, roughness: 0.85, metalness: 0.02 });
-      const matDark      = new THREE.MeshStandardMaterial({ color: 0x1a1715, roughness: 0.65, metalness: 0.1 });
-      const matWalnut    = new THREE.MeshStandardMaterial({ color: 0x6a4226, roughness: 0.55, metalness: 0.05 });
-      const matMarble    = new THREE.MeshStandardMaterial({ color: 0xf5f1ea, roughness: 0.25, metalness: 0.05 });
-      const matBronze    = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.35, metalness: 0.7 });
-      const matBouclé    = new THREE.MeshStandardMaterial({ color: 0xc8b89a, roughness: 0.95, metalness: 0.0 });
-      const matLinen     = new THREE.MeshStandardMaterial({ color: 0xe8dcc4, roughness: 0.95, metalness: 0.0 });
-      const matGlass = new THREE.MeshPhysicalMaterial({
-        color: 0x2a3a44, roughness: 0.05, metalness: 0.0,
-        transmission: 0.75, transparent: true, opacity: 0.42,
-        ior: 1.45, thickness: 0.4,
-      });
-      const matWaterDay = new THREE.MeshStandardMaterial({
-        color: 0x6f9bb0, roughness: 0.12, metalness: 0.6, transparent: true, opacity: 0.86,
-      });
-      const matFoliage = new THREE.MeshStandardMaterial({ color: 0x2a3d24, roughness: 0.95 });
-      const matFoliageDark = new THREE.MeshStandardMaterial({ color: 0x141a10, roughness: 1 });
+      // Interior light registry — built by buildInteriors
+      const registry = { interiorLights: [], soffits: [] };
 
-      /* ====================== TERRAIN ====================== */
-      const groundGeo = new THREE.PlaneGeometry(220, 220, 32, 32);
-      // Slight noise to ground
+      /* =============== TERRAIN =============== */
+      const groundGeo = new THREE.PlaneGeometry(260, 260, 36, 36);
       const gpos = groundGeo.attributes.position;
       for (let i = 0; i < gpos.count; i++) {
         const x = gpos.getX(i), y = gpos.getY(i);
@@ -161,416 +175,392 @@
         if (d > 24) gpos.setZ(i, Math.sin(x*0.07)*0.4 + Math.cos(y*0.05)*0.4 + (d-24)*0.012);
       }
       groundGeo.computeVertexNormals();
-      const ground = new THREE.Mesh(groundGeo,
-        new THREE.MeshStandardMaterial({ color: 0xc7b395, roughness: 0.95, metalness: 0.0 }));
+      const ground = new THREE.Mesh(groundGeo, M.matSand);
       ground.rotation.x = -Math.PI / 2;
       ground.receiveShadow = true;
       scene.add(ground);
 
-      // Sand path / driveway
-      const driveGeo = new THREE.PlaneGeometry(7, 38);
-      const drive = new THREE.Mesh(driveGeo,
-        new THREE.MeshStandardMaterial({ color: 0xd9c9aa, roughness: 0.9 }));
-      drive.rotation.x = -Math.PI/2; drive.position.set(0, 0.005, 22);
-      drive.receiveShadow = true;
-      scene.add(drive);
+      // Driveway (pebble strip)
+      const drive = new THREE.Mesh(new THREE.PlaneGeometry(7, 38), M.matPebble);
+      drive.rotation.x = -Math.PI/2; drive.position.set(0, 0.006, 22);
+      drive.receiveShadow = true; scene.add(drive);
+      // entry forecourt — wider plate
+      const fore = new THREE.Mesh(new THREE.PlaneGeometry(18, 8), M.matTravertineFloor);
+      fore.rotation.x = -Math.PI/2; fore.position.set(0, 0.008, 9);
+      fore.receiveShadow = true; scene.add(fore);
 
-      // Distant mountain silhouettes (low poly cones)
-      const mountainMat = new THREE.MeshStandardMaterial({ color: 0x8a8475, roughness: 1, flatShading: true });
-      function mountain(x, z, r, h) {
-        const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6, 1), mountainMat);
-        m.position.set(x, h/2, z);
+      // Distant terrain — gentle hills
+      const hillMat = new THREE.MeshStandardMaterial({ color: 0x7e7665, roughness: 1, flatShading: true });
+      for (let i = 0; i < 8; i++) {
+        const r = 14 + Math.random()*14;
+        const h = 10 + Math.random()*16;
+        const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7, 1), hillMat);
+        const ang = (i / 8) * Math.PI * 2;
+        m.position.set(Math.cos(ang)*85, h/2, -50 - Math.sin(ang)*20);
         scene.add(m);
       }
-      mountain(-60, -70, 18, 14);
-      mountain(-30, -85, 22, 18);
-      mountain(10, -90, 26, 22);
-      mountain(50, -80, 20, 16);
-      mountain(80, -70, 16, 12);
 
-      /* ====================== POOL ====================== */
-      // Pool basin (recessed)
-      const poolBasin = new THREE.Mesh(new THREE.BoxGeometry(22, 0.8, 6.5),
-        new THREE.MeshStandardMaterial({ color: 0x9f8a6c, roughness: 0.9 }));
-      poolBasin.position.set(0, -0.4, 9);
+      /* =============== POOL =============== */
+      const poolBasinMat = new THREE.MeshStandardMaterial({ color: 0x4a6e80, roughness: 0.5 });
+      const poolBasin = new THREE.Mesh(new THREE.BoxGeometry(22.4, 1.2, 6.8), poolBasinMat);
+      poolBasin.position.set(0, -0.6, 9);
       poolBasin.receiveShadow = true;
       scene.add(poolBasin);
-      // Water surface
-      const water = new THREE.Mesh(new THREE.PlaneGeometry(21.6, 6.1, 24, 8), matWaterDay);
-      water.rotation.x = -Math.PI/2; water.position.set(0, 0.02, 9);
+      // pool tile rim
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(22.6, 0.04, 7),
+        new THREE.MeshStandardMaterial({ color: 0xc4b89a, roughness: 0.8 }));
+      rim.position.set(0, 0.02, 9); scene.add(rim);
+      // water surface
+      const water = new THREE.Mesh(new THREE.PlaneGeometry(21.8, 6.2, 32, 12), M.matWater);
+      water.rotation.x = -Math.PI/2; water.position.set(0, 0.05, 9);
+      water.receiveShadow = true;
       scene.add(water);
-      // animated normal-ish ripples via vertex displacement
       const waterPos = water.geometry.attributes.position;
       const waterBase = new Float32Array(waterPos.count);
       for (let i = 0; i < waterPos.count; i++) waterBase[i] = waterPos.getZ(i);
 
-      // Pool deck
-      const deck = new THREE.Mesh(new THREE.PlaneGeometry(34, 14),
-        new THREE.MeshStandardMaterial({ color: 0xe5dac3, roughness: 0.9 }));
-      deck.rotation.x = -Math.PI/2; deck.position.set(0, 0.008, 9);
+      // pool deck (travertine)
+      const deck = new THREE.Mesh(new THREE.PlaneGeometry(36, 14), M.matTravertineFloor);
+      deck.rotation.x = -Math.PI/2; deck.position.set(0, 0.012, 9);
+      deck.receiveShadow = true;
       scene.add(deck);
 
-      /* ====================== VILLA STRUCTURE ====================== */
-      const villa = new THREE.Group();
-      scene.add(villa);
+      /* =============== ARCHITECTURE + INTERIORS + LANDSCAPE =============== */
+      window.VitaraBuild.buildArchitecture(scene, M, registry);
+      window.VitaraBuild.buildInteriors(scene, M, registry);
+      const landscape = window.VitaraBuild.buildLandscape(scene, M, lowFi);
 
-      // Ground floor: open plan living/dining/kitchen, U-shape with walls on back+sides
-      const gfFloor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.3, 12), matStoneWarm);
-      gfFloor.position.set(0, 0.15, -1);
-      gfFloor.receiveShadow = true;
-      villa.add(gfFloor);
-
-      // Back wall (rear of house)
-      const backWallGeo = new THREE.BoxGeometry(16.2, 3.4, 0.3);
-      const backWall = new THREE.Mesh(backWallGeo, matStoneWarm);
-      backWall.position.set(0, 1.85, -6.9);
-      backWall.castShadow = backWall.receiveShadow = true;
-      villa.add(backWall);
-
-      // Side walls
-      const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.4, 12), matStoneWarm);
-      sideL.position.set(-7.95, 1.85, -1); sideL.castShadow = true; villa.add(sideL);
-      const sideR = sideL.clone(); sideR.position.x = 7.95; villa.add(sideR);
-
-      // Interior partition wall (between living and kitchen/dining)
-      const partition = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3, 5.5), matStoneCool);
-      partition.position.set(0.6, 1.65, -3.6);
-      villa.add(partition);
-
-      // Glass front facade (south, facing pool)
-      const glassFront = new THREE.Mesh(new THREE.BoxGeometry(15.4, 3.0, 0.12), matGlass);
-      glassFront.position.set(0, 1.75, 4.9);
-      villa.add(glassFront);
-      // Mullions for glass facade
-      for (let i = -5; i <= 5; i += 2.5) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, 3.0, 0.16), matDark);
-        m.position.set(i, 1.75, 4.96); villa.add(m);
+      // Interior point lights placed at room centers (room-by-room glow)
+      function placeRoomLight(x, y, z, color = 0xffaa66, base = 1.6, dist = 9) {
+        const l = new THREE.PointLight(color, 0, dist, 2);
+        l.position.set(x, y, z);
+        scene.add(l);
+        registry.interiorLights.push({ light: l, base, type: 'room' });
       }
-      const topMullion = new THREE.Mesh(new THREE.BoxGeometry(15.4, 0.07, 0.16), matDark);
-      topMullion.position.set(0, 3.25, 4.96); villa.add(topMullion);
-      const botMullion = topMullion.clone(); botMullion.position.y = 0.3; villa.add(botMullion);
-      const midMullion = topMullion.clone(); midMullion.position.y = 1.75; villa.add(midMullion);
+      placeRoomLight(-2.5, 2.4, 1.5, 0xffaa66, 1.6);     // living
+      placeRoomLight(-3.6, 2.2, -2.4, 0xffaa66, 1.4);    // dining
+      placeRoomLight(3.6, 2.2, -2,  0xffba78, 1.3);      // kitchen
+      placeRoomLight(0, 5.4, 1.0, 0xffaa66, 1.4);        // master
+      placeRoomLight(-5.5, 5.4, -3.5, 0xffba78, 1.2);    // wardrobe
+      placeRoomLight(5, 5.4, -5,   0xffce98, 1.5);       // bathroom
+      placeRoomLight(5, 5.4, -0.5, 0xffaa66, 1.3);       // study
+      placeRoomLight(0, 1.4, 9,    0x6ac7e3, 1.9, 12);   // pool
+      placeRoomLight(-11.5, 1.4, 0, 0xffc89a, 1.1, 7);   // courtyard tree uplight
+      placeRoomLight(0, 0.3, 6,    0xffc89a, 0.8, 5);    // entrance step
+      placeRoomLight(-6, 2.4, 5,   0xffa860, 1.3, 5);    // entrance pivot lamp wash
 
-      // Pivot door (entrance) — bronze
-      const door = new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.2, 0.08), matBronze);
-      door.position.set(-6, 1.7, 4.96);
-      door.castShadow = true;
-      villa.add(door);
-
-      // Cantilever first floor slab
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(20, 0.4, 14), matStoneWarm);
-      slab.position.set(0, 3.55, -0.5);
-      slab.castShadow = slab.receiveShadow = true;
-      villa.add(slab);
-
-      // Under-soffit warm strip
-      const soffit = new THREE.Mesh(new THREE.BoxGeometry(19.6, 0.04, 13.6),
-        new THREE.MeshStandardMaterial({ color: 0xffd7a3, emissive: 0xffb069, emissiveIntensity: 0.45, roughness: 0.6 }));
-      soffit.position.set(0, 3.32, -0.5);
-      villa.add(soffit);
-
-      // First-floor walls
-      const ff_back = new THREE.Mesh(new THREE.BoxGeometry(16.2, 2.8, 0.3), matStoneWarm);
-      ff_back.position.set(0, 5.15, -6.9); ff_back.castShadow = true; villa.add(ff_back);
-      const ff_sideL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.8, 12), matStoneWarm);
-      ff_sideL.position.set(-7.95, 5.15, -1); ff_sideL.castShadow = true; villa.add(ff_sideL);
-      const ff_sideR = ff_sideL.clone(); ff_sideR.position.x = 7.95; villa.add(ff_sideR);
-
-      // First-floor floor (interior reference)
-      const ff_floor = new THREE.Mesh(new THREE.BoxGeometry(15.4, 0.1, 11.4), matWalnut);
-      ff_floor.position.set(0, 3.82, -1);
-      villa.add(ff_floor);
-
-      // First-floor glass facade
-      const ff_glass = new THREE.Mesh(new THREE.BoxGeometry(15.4, 2.6, 0.12), matGlass);
-      ff_glass.position.set(0, 5.05, 4.9); villa.add(ff_glass);
-      for (let i = -5; i <= 5; i += 2.5) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.6, 0.16), matDark);
-        m.position.set(i, 5.05, 4.96); villa.add(m);
-      }
-
-      // Roof slab (heavy overhang)
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(22, 0.5, 16), matStoneCool);
-      roof.position.set(0, 6.6, -0.5);
-      roof.castShadow = roof.receiveShadow = true;
-      villa.add(roof);
-      const roofSoffit = new THREE.Mesh(new THREE.BoxGeometry(21.6, 0.04, 15.6),
-        new THREE.MeshStandardMaterial({ color: 0xffd7a3, emissive: 0xffb069, emissiveIntensity: 0.35, roughness: 0.6 }));
-      roofSoffit.position.set(0, 6.34, -0.5);
-      villa.add(roofSoffit);
-
-      // Columns under cantilever
-      function column(x, z, h = 6.4) {
-        const c = new THREE.Mesh(new THREE.BoxGeometry(0.22, h, 0.22), matDark);
-        c.position.set(x, h/2 + 0.05, z); c.castShadow = true; villa.add(c);
-      }
-      column(-7.5, 5.4); column(7.5, 5.4); column(-7.5, -5.4); column(7.5, -5.4);
-      column(0, 5.4);
-
-      // Balcony rail (frameless glass) at upper level
-      const railGlass = new THREE.Mesh(new THREE.BoxGeometry(19.6, 1.0, 0.06),
-        new THREE.MeshPhysicalMaterial({ color: 0xa9c0d0, roughness: 0.05, transmission: 0.85, transparent: true, opacity: 0.5, ior: 1.45 }));
-      railGlass.position.set(0, 4.25, 6.6); villa.add(railGlass);
-
-      /* ====================== INTERIOR PROPS ====================== */
-      // -- Living room: sofa + coffee table + rug --
-      const sofa = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.7, 1.6), matBouclé);
-      sofa.position.set(-2.4, 0.65, 1.6); sofa.castShadow = true; villa.add(sofa);
-      const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.6, 0.3), matBouclé);
-      sofaBack.position.set(-2.4, 1.15, 0.95); villa.add(sofaBack);
-      const coffee = new THREE.Mesh(new THREE.BoxGeometry(2, 0.32, 0.9), matWalnut);
-      coffee.position.set(-2.4, 0.46, 3.0); villa.add(coffee);
-      const rug = new THREE.Mesh(new THREE.PlaneGeometry(5, 3.5),
-        new THREE.MeshStandardMaterial({ color: 0xb8a584, roughness: 1 }));
-      rug.rotation.x = -Math.PI/2; rug.position.set(-2.4, 0.31, 2); villa.add(rug);
-
-      // -- Dining: long table + chairs --
-      const dining = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 1.1), matWalnut);
-      dining.position.set(-3.6, 0.96, -2.2); dining.castShadow = true; villa.add(dining);
-      // table base
-      const dBase = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.78, 0.18), matDark);
-      dBase.position.set(-3.6, 0.49, -2.2); villa.add(dBase);
-      // chairs (boxy)
-      for (let i = 0; i < 4; i++) {
-        const chair = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.9, 0.42), matLinen);
-        chair.position.set(-4.8 + i*0.8, 0.45, -1.55);
-        villa.add(chair);
-        const c2 = chair.clone(); c2.position.z = -2.85; villa.add(c2);
-      }
-      // Pendant lights over dining
-      const pendantMat = new THREE.MeshStandardMaterial({ color: 0xffd7a3, emissive: 0xffb069, emissiveIntensity: 1.2, roughness: 0.4 });
-      for (let i = -1; i <= 1; i++) {
-        const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1.2), matDark);
-        cord.position.set(-3.6 + i*1.0, 2.4, -2.2); villa.add(cord);
-        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), pendantMat);
-        bulb.position.set(-3.6 + i*1.0, 1.8, -2.2); villa.add(bulb);
-      }
-
-      // -- Kitchen: island + range --
-      const kIsland = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.05, 1.0), matMarble);
-      kIsland.position.set(3.6, 0.52, -2); villa.add(kIsland);
-      const kCounter = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.05, 0.8), matMarble);
-      kCounter.position.set(3.6, 0.52, -5.8); villa.add(kCounter);
-      // Bar stools
-      for (let i = -1; i <= 1; i++) {
-        const st = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.95), matDark);
-        st.position.set(3.6 + i*1.0, 0.47, -1); villa.add(st);
-      }
-
-      // -- Master bed (upper level) --
-      const bed = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.55, 2.1), matLinen);
-      bed.position.set(0, 4.18, 1.0); bed.castShadow = true; villa.add(bed);
-      const head = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.2, 0.18), matWalnut);
-      head.position.set(0, 4.5, -0.1); villa.add(head);
-      const pillow = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.18, 0.6),
-        new THREE.MeshStandardMaterial({ color: 0xf5edd9, roughness: 1 }));
-      pillow.position.set(0, 4.52, 0.25); villa.add(pillow);
-
-      // -- Wardrobe (upper, left bay) --
-      const wardrobe = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.4, 0.35), matWalnut);
-      wardrobe.position.set(-5.5, 5.05, -4.5); villa.add(wardrobe);
-      // Vertical splits via dark inlays
-      for (let i = -1.2; i <= 1.2; i += 0.6) {
-        const inlay = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.2, 0.36), matBronze);
-        inlay.position.set(-5.5 + i, 5.05, -4.5); villa.add(inlay);
-      }
-      // central dressing island
-      const dressing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.85, 0.9), matWalnut);
-      dressing.position.set(-5.0, 4.32, -3.4); villa.add(dressing);
-
-      // -- Bathroom (upper right) --
-      const tub = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.65, 0.95), matMarble);
-      tub.position.set(5.0, 4.22, -3.6); villa.add(tub);
-      const basin = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.18, 0.7), matMarble);
-      basin.position.set(5.0, 4.78, -5.4); villa.add(basin);
-      const mirror = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.4),
-        new THREE.MeshStandardMaterial({ color: 0x223038, roughness: 0.05, metalness: 0.9 }));
-      mirror.position.set(5.0, 5.65, -6.7); villa.add(mirror);
-
-      /* ====================== VEGETATION ====================== */
-      function palm(x, z, scale = 1, seed = 0) {
+      /* =============== ATMOSPHERE: clouds, birds, particles =============== */
+      // Birds — sprites that loop a path
+      const birdGroup = new THREE.Group(); scene.add(birdGroup);
+      const birdMat = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.85, depthWrite: false });
+      const birds = [];
+      const numBirds = lowFi ? 4 : 9;
+      for (let i = 0; i < numBirds; i++) {
         const g = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.13, 4.8, 8), matFoliageDark);
-        trunk.position.y = 2.4; trunk.castShadow = true; g.add(trunk);
-        for (let i = 0; i < 9; i++) {
-          const frond = new THREE.Mesh(new THREE.ConeGeometry(0.22, 2.6, 4, 1, true), matFoliage);
-          frond.position.y = 4.7;
-          const a = (i / 9) * Math.PI * 2 + seed;
-          const tilt = 0.55 + Math.sin(i + seed) * 0.18;
-          frond.rotation.z = Math.cos(a) * tilt;
-          frond.rotation.x = Math.sin(a) * tilt;
-          frond.position.x = Math.cos(a) * 0.5;
-          frond.position.z = Math.sin(a) * 0.5;
-          frond.position.y += Math.cos(a) * 0.3;
-          frond.castShadow = true;
-          g.add(frond);
-        }
-        g.position.set(x, 0, z); g.scale.setScalar(scale);
-        scene.add(g);
-        return g;
-      }
-      const palms = [];
-      palms.push(palm(-13, 10, 1.05, 0.0));
-      palms.push(palm(-16, 4, 1.0, 0.5));
-      palms.push(palm(13, 9, 1.1, 1.0));
-      palms.push(palm(17, 3, 0.95, 1.4));
-      palms.push(palm(-18, -8, 0.9, 2.1));
-      palms.push(palm(18, -8, 1.0, 2.6));
-      palms.push(palm(-10, 16, 1.2, 3.1));
-      palms.push(palm(10, 16, 1.15, 3.6));
-      if (!lowFi) {
-        palms.push(palm(-22, 18, 0.85, 4.1));
-        palms.push(palm(22, 18, 0.85, 4.6));
+        const wL = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.18), birdMat);
+        const wR = wL.clone();
+        wR.position.x = 0.3; wL.position.x = -0.3;
+        g.add(wL, wR);
+        g.userData = {
+          radius: 30 + Math.random() * 30,
+          ySpan: 18 + Math.random() * 12,
+          speed: 0.05 + Math.random() * 0.07,
+          phase: Math.random() * Math.PI * 2,
+          wingPhase: Math.random() * Math.PI * 2,
+          wL, wR,
+        };
+        birdGroup.add(g); birds.push(g);
       }
 
-      // Hedge boxes flanking driveway
-      for (let i = 0; i < 6; i++) {
-        const hedge = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 1.2),
-          new THREE.MeshStandardMaterial({ color: 0x3e4f33, roughness: 1 }));
-        hedge.position.set(-4.6, 0.4, 14 + i*4); hedge.castShadow = true; scene.add(hedge);
-        const h2 = hedge.clone(); h2.position.x = 4.6; scene.add(h2);
+      // Particle field (dust motes — visible in daytime)
+      const moteGeo = new THREE.BufferGeometry();
+      const moteCount = lowFi ? 90 : 240;
+      const motePos = new Float32Array(moteCount * 3);
+      for (let i = 0; i < moteCount; i++) {
+        motePos[i*3]   = (Math.random() - 0.5) * 60;
+        motePos[i*3+1] = 1 + Math.random() * 12;
+        motePos[i*3+2] = (Math.random() - 0.5) * 60;
       }
+      moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+      const motes = new THREE.Points(moteGeo,
+        new THREE.PointsMaterial({ color: 0xfff0d0, size: 0.07, transparent: true, opacity: 0.55, depthWrite: false, sizeAttenuation: true }));
+      scene.add(motes);
 
-      // Gate pillars at front of driveway
-      const gateL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3.2, 0.8), matDark);
-      gateL.position.set(-5, 1.6, 36); gateL.castShadow = true; scene.add(gateL);
-      const gateR = gateL.clone(); gateR.position.x = 5; scene.add(gateR);
-      const gateTop = new THREE.Mesh(new THREE.BoxGeometry(10.6, 0.14, 0.18), matDark);
-      gateTop.position.set(0, 3.1, 36); scene.add(gateTop);
-
-      /* ====================== PARTICLES & FIREFLIES ====================== */
-      function makePoints(count, range, ySpan, yMin, color, size, opacity) {
-        const g = new THREE.BufferGeometry();
-        const pos = new Float32Array(count * 3);
-        for (let i = 0; i < count; i++) {
-          pos[i*3]   = (Math.random() - 0.5) * range;
-          pos[i*3+1] = yMin + Math.random() * ySpan;
-          pos[i*3+2] = (Math.random() - 0.5) * range;
-        }
-        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        const m = new THREE.PointsMaterial({ color, size, transparent: true, opacity, sizeAttenuation: true, depthWrite: false });
-        const pts = new THREE.Points(g, m);
-        scene.add(pts);
-        return pts;
+      // Fireflies — appear at night only
+      const ffGeo = new THREE.BufferGeometry();
+      const ffCount = lowFi ? 30 : 90;
+      const ffPos = new Float32Array(ffCount * 3);
+      for (let i = 0; i < ffCount; i++) {
+        ffPos[i*3]   = (Math.random() - 0.5) * 40;
+        ffPos[i*3+1] = 0.5 + Math.random() * 6;
+        ffPos[i*3+2] = (Math.random() - 0.5) * 40;
       }
-      const motes = makePoints(lowFi ? 80 : 220, 50, 10, 1, 0xfff0d0, 0.06, 0.45);
-      const fireflies = makePoints(lowFi ? 30 : 80, 40, 6, 0.5, 0xffd66e, 0.07, 0.0);
-      fireflies.material.opacity = 0;
+      ffGeo.setAttribute('position', new THREE.BufferAttribute(ffPos, 3));
+      const fireflies = new THREE.Points(ffGeo,
+        new THREE.PointsMaterial({ color: 0xffd66e, size: 0.10, transparent: true, opacity: 0.0, depthWrite: false, sizeAttenuation: true }));
+      scene.add(fireflies);
 
-      /* ====================== CAMERA PATH ====================== */
-      // 16 cinematic stops (one more than chapters to allow lookahead). Position + lookAt + FOV.
-      const stops = [
-        // 0: far aerial reveal (hero start)
-        { p: [38, 18, 50],  l: [0, 4, 0],    fov: 38 },
-        // 1: approach over driveway (hero end)
-        { p: [0, 6, 28],    l: [0, 3.5, 0],  fov: 36 },
-        // 2: at the gate
-        { p: [0, 2.6, 38],  l: [0, 2.8, 0],  fov: 42 },
-        // 3: driveway mid
-        { p: [0, 2.2, 22],  l: [0, 2.4, 0],  fov: 44 },
-        // 4: entrance pivot door
-        { p: [-2, 1.7, 8.5],l: [-5.8, 1.7, 4.9], fov: 48 },
-        // 5: living room — inside
-        { p: [-2.2, 1.7, 4.2], l: [-2.4, 1.4, -2], fov: 52 },
-        // 6: dining
-        { p: [-1.5, 1.6, -0.2], l: [-3.6, 1.0, -2.5], fov: 50 },
-        // 7: kitchen
-        { p: [2.4, 1.6, 0.0], l: [3.6, 1.0, -2.5], fov: 50 },
-        // 8: master bedroom
-        { p: [-1, 4.7, 3.0], l: [0, 4.3, -0.2], fov: 50 },
-        // 9: wardrobe
-        { p: [-3.6, 4.7, -2.2], l: [-5.5, 4.7, -4.6], fov: 52 },
-        // 10: bathroom
-        { p: [3.4, 4.8, -2.4], l: [5.0, 4.6, -6.0], fov: 50 },
-        // 11: balcony
-        { p: [0, 4.8, 5.6], l: [0, 3.5, 12], fov: 46 },
-        // 12: pool deck (low to water)
-        { p: [-4, 1.0, 11.5], l: [4, 1.0, 9], fov: 44 },
-        // 13: night scene from across pool
-        { p: [0, 1.4, 18], l: [0, 3.0, 0], fov: 40 },
-        // 14: final aerial overview
-        { p: [-26, 22, 36], l: [0, 4, 0], fov: 30 },
-        // 15: pad
-        { p: [-26, 22, 36], l: [0, 4, 0], fov: 30 },
+      // Weather/light particles (occasionally faint floating particles like seeds)
+      const dustGeo = new THREE.BufferGeometry();
+      const dustCount = lowFi ? 80 : 200;
+      const dustPos = new Float32Array(dustCount * 3);
+      for (let i = 0; i < dustCount; i++) {
+        dustPos[i*3]   = (Math.random() - 0.5) * 80;
+        dustPos[i*3+1] = 0.5 + Math.random() * 20;
+        dustPos[i*3+2] = (Math.random() - 0.5) * 80;
+      }
+      dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+      const dust = new THREE.Points(dustGeo,
+        new THREE.PointsMaterial({ color: 0xffe4c0, size: 0.05, transparent: true, opacity: 0.25, depthWrite: false, sizeAttenuation: true }));
+      scene.add(dust);
+
+      /* =============== CAMERA PATH (18 stops, Catmull-Rom) =============== */
+      // Stops follow the user-spec walkthrough.
+      const STOPS = [
+        // 0 Aerial reveal
+        { p: [42, 22, 56],  l: [0, 4, -2],  fov: 36 },
+        // 1 Approach (drone, lower)
+        { p: [0, 8, 30],    l: [0, 3.5, 0], fov: 34 },
+        // 2 Gate
+        { p: [0, 2.4, 40],  l: [0, 2.8, 30], fov: 44 },
+        // 3 Landscape / driveway mid
+        { p: [-1.5, 2.1, 22], l: [1, 2.5, 6], fov: 46 },
+        // 4 Entrance — pivot door
+        { p: [-3, 1.7, 9.6], l: [-6.0, 1.7, 4.9], fov: 50 },
+        // 5 Foyer (looking into living)
+        { p: [-4.0, 1.7, 3.4], l: [-2.4, 1.4, -2.5], fov: 54 },
+        // 6 Living
+        { p: [-1.8, 1.7, 4.0], l: [-3.0, 1.0, -2.0], fov: 50 },
+        // 7 Dining
+        { p: [-0.8, 1.7, -0.4], l: [-3.8, 1.0, -2.6], fov: 48 },
+        // 8 Kitchen
+        { p: [2.0, 1.7, -0.2], l: [3.8, 1.1, -3.0], fov: 50 },
+        // 9 Courtyard (looking out west)
+        { p: [-7.2, 1.6, 0.4], l: [-12.0, 2.0, 0], fov: 52 },
+        // 10 Master bedroom
+        { p: [-1.2, 4.8, 3.2], l: [0.5, 4.5, -0.6], fov: 52 },
+        // 11 Wardrobe
+        { p: [-3.4, 4.8, -2.2], l: [-5.6, 4.7, -4.6], fov: 54 },
+        // 12 Bathroom
+        { p: [3.4, 4.9, -2.0], l: [5.2, 4.6, -6.0], fov: 50 },
+        // 13 Balcony
+        { p: [0, 4.9, 5.4],  l: [0, 3.5, 14], fov: 44 },
+        // 14 Study
+        { p: [3.5, 4.6, 1.4], l: [5.4, 4.6, -1.4], fov: 50 },
+        // 15 Theatre
+        { p: [0, 1.6, -12.6], l: [0, 1.7, -19.0], fov: 46 },
+        // 16 Pool (low to water)
+        { p: [-5, 0.7, 12.5], l: [5, 0.8, 8], fov: 42 },
+        // 17 Night (over pool, looking at glowing villa)
+        { p: [0, 1.6, 20],  l: [0, 3.0, 0], fov: 40 },
+        // 18 Aerial ending
+        { p: [-28, 24, 38], l: [0, 4, 0],  fov: 30 },
       ];
 
-      // ====== SCROLL → CAMERA ======
-      // External code sets `setProgress(p)` where p∈[0,1] across the WHOLE journey.
-      // We map p to a stop index t = p * (stops.length - 2). Smooth interpolation + ease.
-      const v = new THREE.Vector3();
-      const look = new THREE.Vector3();
-      const targetPos = new THREE.Vector3().fromArray(stops[0].p);
-      const targetLook = new THREE.Vector3().fromArray(stops[0].l);
-      let targetFov = stops[0].fov;
+      // Build Catmull-Rom curves for position and lookAt (smooth spline)
+      const posPoints = STOPS.map(s => new THREE.Vector3().fromArray(s.p));
+      const lookPoints = STOPS.map(s => new THREE.Vector3().fromArray(s.l));
+      const posCurve = new THREE.CatmullRomCurve3(posPoints, false, 'catmullrom', 0.4);
+      const lookCurve = new THREE.CatmullRomCurve3(lookPoints, false, 'catmullrom', 0.4);
+
+      const _v = new THREE.Vector3();
+      const _l = new THREE.Vector3();
+      const targetPos = new THREE.Vector3().copy(posPoints[0]);
+      const targetLook = new THREE.Vector3().copy(lookPoints[0]);
+      let targetFov = STOPS[0].fov;
       let scrollProgress = 0;
       let mouseX = 0, mouseY = 0;
       let tMouseX = 0, tMouseY = 0;
-      let shakeAmt = 0;
+      let shakeAmt = 0.012;
+      let stopIdx = 0;
 
       function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2; }
 
-      function sampleStops(p) {
-        const total = stops.length - 1;
-        const x = p * (total - 1);
-        const i = Math.min(Math.floor(x), total - 2);
-        const f = easeInOutCubic(x - i);
-        const a = stops[i], b = stops[i + 1];
-        targetPos.set(
-          a.p[0] + (b.p[0]-a.p[0])*f,
-          a.p[1] + (b.p[1]-a.p[1])*f,
-          a.p[2] + (b.p[2]-a.p[2])*f,
-        );
-        targetLook.set(
-          a.l[0] + (b.l[0]-a.l[0])*f,
-          a.l[1] + (b.l[1]-a.l[1])*f,
-          a.l[2] + (b.l[2]-a.l[2])*f,
-        );
-        targetFov = a.fov + (b.fov - a.fov) * f;
-        // micro shake stronger during driveway and pool, less in calm rooms
-        shakeAmt = (i === 2 || i === 3 || i === 12) ? 0.04 : 0.015;
+      function sampleCurve(p) {
+        // p in [0..1] maps along entire spline. Add slight ease per segment.
+        const total = STOPS.length - 1;
+        const seg = p * total;
+        stopIdx = Math.min(Math.floor(seg), total - 1);
+        const f = seg - stopIdx;
+        const fE = easeInOutCubic(f);
+        // Curve parameter:
+        const u = (stopIdx + fE) / total;
+        posCurve.getPointAt(Math.max(0, Math.min(1, u)), targetPos);
+        lookCurve.getPointAt(Math.max(0, Math.min(1, u)), targetLook);
+        // FOV interp (linear between stops, eased)
+        const fovA = STOPS[stopIdx].fov;
+        const fovB = STOPS[Math.min(stopIdx + 1, total)].fov;
+        targetFov = fovA + (fovB - fovA) * fE;
+        // Higher shake during gate/driveway/pool (movement)
+        if (stopIdx === 1 || stopIdx === 2 || stopIdx === 3 || stopIdx === 16) shakeAmt = 0.045;
+        else if (stopIdx >= 13 && stopIdx <= 15) shakeAmt = 0.020;
+        else shakeAmt = 0.010;
       }
 
-      function onMouseMove(e) {
-        const rect = renderer.domElement.getBoundingClientRect();
-        tMouseX = ((e.clientX - rect.left) / rect.width  - 0.5) * 2;
-        tMouseY = ((e.clientY - rect.top)  / rect.height - 0.5) * 2;
-      }
-      window.addEventListener('mousemove', onMouseMove);
+      /* =============== POST-PROCESSING PIPELINE =============== */
+      // Pipeline:
+      //   1. Render scene → sceneRT (full res)
+      //   2. Bright pass → brightRT (half res)
+      //   3. H-blur → blurH RT (half res)
+      //   4. V-blur → blurV RT (half res)
+      //   5. Composite (scene + bloom + grain + vignette + aberration) → screen
+      const halfW = () => Math.max(2, Math.floor(W / 2));
+      const halfH = () => Math.max(2, Math.floor(H / 2));
+      const rtOpts = { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true };
+      let sceneRT  = new THREE.WebGLRenderTarget(W, H, rtOpts);
+      let brightRT = new THREE.WebGLRenderTarget(halfW(), halfH(), { ...rtOpts, depthBuffer: false });
+      let blurHRT  = new THREE.WebGLRenderTarget(halfW(), halfH(), { ...rtOpts, depthBuffer: false });
+      let blurVRT  = new THREE.WebGLRenderTarget(halfW(), halfH(), { ...rtOpts, depthBuffer: false });
 
-      /* ====================== TIME OF DAY ====================== */
-      // phase ∈ [0..1]: morning → noon → golden → dusk → night
+      // Fullscreen orthographic quad
+      const fsScene = new THREE.Scene();
+      const fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      const fsGeo = new THREE.PlaneGeometry(2, 2);
+      const fsMesh = new THREE.Mesh(fsGeo, new THREE.MeshBasicMaterial());
+      fsScene.add(fsMesh);
+
+      const vsFullscreen = `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`;
+
+      const brightMat = new THREE.ShaderMaterial({
+        uniforms: { tDiffuse: { value: null }, threshold: { value: 0.85 }, softness: { value: 0.3 } },
+        vertexShader: vsFullscreen,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform float threshold, softness;
+          varying vec2 vUv;
+          void main() {
+            vec4 c = texture2D(tDiffuse, vUv);
+            float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+            float k = smoothstep(threshold, threshold + softness, lum);
+            gl_FragColor = vec4(c.rgb * k, 1.0);
+          }`,
+      });
+      const blurMat = new THREE.ShaderMaterial({
+        uniforms: { tDiffuse: { value: null }, dir: { value: new THREE.Vector2(1, 0) }, texel: { value: new THREE.Vector2(1/W, 1/H) } },
+        vertexShader: vsFullscreen,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform vec2 dir, texel;
+          varying vec2 vUv;
+          void main() {
+            // 9-tap gaussian
+            vec4 c = vec4(0.0);
+            vec2 off = texel * dir;
+            c += texture2D(tDiffuse, vUv - off*4.0) * 0.05;
+            c += texture2D(tDiffuse, vUv - off*3.0) * 0.09;
+            c += texture2D(tDiffuse, vUv - off*2.0) * 0.12;
+            c += texture2D(tDiffuse, vUv - off*1.0) * 0.15;
+            c += texture2D(tDiffuse, vUv          ) * 0.18;
+            c += texture2D(tDiffuse, vUv + off*1.0) * 0.15;
+            c += texture2D(tDiffuse, vUv + off*2.0) * 0.12;
+            c += texture2D(tDiffuse, vUv + off*3.0) * 0.09;
+            c += texture2D(tDiffuse, vUv + off*4.0) * 0.05;
+            gl_FragColor = c;
+          }`,
+      });
+      const compMat = new THREE.ShaderMaterial({
+        uniforms: {
+          tDiffuse: { value: null },
+          tBloom:   { value: null },
+          uBloomStrength: { value: 0.55 },
+          uTime: { value: 0 },
+          uGrain: { value: 0.06 },
+          uVignette: { value: 0.65 },
+          uAberration: { value: 0.0028 },
+          uNight: { value: 0.0 },
+        },
+        vertexShader: vsFullscreen,
+        fragmentShader: `
+          uniform sampler2D tDiffuse, tBloom;
+          uniform float uBloomStrength, uTime, uGrain, uVignette, uAberration, uNight;
+          varying vec2 vUv;
+          float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+          void main() {
+            vec2 uv = vUv;
+            vec2 toCenter = uv - 0.5;
+            float dist = length(toCenter);
+            // Chromatic aberration scales with radial distance
+            float ab = uAberration * (0.3 + dist * 1.4);
+            vec3 c;
+            c.r = texture2D(tDiffuse, uv + toCenter * ab).r;
+            c.g = texture2D(tDiffuse, uv).g;
+            c.b = texture2D(tDiffuse, uv - toCenter * ab).b;
+            // Bloom add
+            vec3 bloom = texture2D(tBloom, uv).rgb;
+            c += bloom * uBloomStrength;
+            // Subtle desat at night for cinematic feel
+            float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            c = mix(c, vec3(lum), uNight * 0.18);
+            // Vignette
+            float vig = 1.0 - smoothstep(0.45, 0.95, dist) * uVignette;
+            c *= vig;
+            // Film grain (animated)
+            float n = (hash(uv * vec2(1920.0, 1080.0) + uTime) - 0.5) * uGrain;
+            c += n;
+            // Subtle lift on shadows / soft toe
+            c = c / (c + vec3(0.06));
+            // Re-tonal contrast a touch
+            c = pow(c, vec3(0.95));
+            gl_FragColor = vec4(c, 1.0);
+          }`,
+      });
+
+      function renderPostFX() {
+        // 1. Render scene
+        renderer.setRenderTarget(sceneRT);
+        renderer.render(scene, camera);
+        // 2. Bright pass
+        fsMesh.material = brightMat;
+        brightMat.uniforms.tDiffuse.value = sceneRT.texture;
+        renderer.setRenderTarget(brightRT);
+        renderer.render(fsScene, fsCam);
+        // 3. Horizontal blur
+        fsMesh.material = blurMat;
+        blurMat.uniforms.tDiffuse.value = brightRT.texture;
+        blurMat.uniforms.dir.value.set(1.5, 0);
+        blurMat.uniforms.texel.value.set(1/halfW(), 1/halfH());
+        renderer.setRenderTarget(blurHRT);
+        renderer.render(fsScene, fsCam);
+        // 4. Vertical blur
+        blurMat.uniforms.tDiffuse.value = blurHRT.texture;
+        blurMat.uniforms.dir.value.set(0, 1.5);
+        renderer.setRenderTarget(blurVRT);
+        renderer.render(fsScene, fsCam);
+        // 5. Composite to screen
+        fsMesh.material = compMat;
+        compMat.uniforms.tDiffuse.value = sceneRT.texture;
+        compMat.uniforms.tBloom.value = blurVRT.texture;
+        renderer.setRenderTarget(null);
+        renderer.render(fsScene, fsCam);
+      }
+
+      /* =============== DAY → NIGHT =============== */
       function setDayPhase(phase) {
         phase = Math.max(0, Math.min(1, phase));
-
-        // Sun position on an arc (east low → high → west low → below)
-        const sunAngle = phase * Math.PI * 1.05 - 0.05; // 0 at horizon east
+        // Sun on an arc
+        const sunAngle = phase * Math.PI * 1.05 - 0.05;
         const sx = Math.cos(sunAngle) * 60;
         const sy = Math.sin(sunAngle) * 50;
         sun.position.set(sx, Math.max(-5, sy), 18);
         skyUniforms.uSunDir.value.set(-Math.cos(sunAngle), Math.max(-0.2, Math.sin(sunAngle)), 0.3).normalize();
 
-        // Color palettes for phases
-        // 0.00 morning: cool blue
-        // 0.25 noon: bright
-        // 0.50 golden hour: warm orange
-        // 0.75 dusk: violet
-        // 1.00 night: deep blue
+        // Color palettes per phase
         const palettes = [
-          { top: 0x5a82b5, mid: 0xe8d8b9, bot: 0xd9c19a, sunC: 0xffd7a8, hemiI: 0.55, sunI: 0.9,  fog: 0xc7c2b5, fogD: 0.012, exp: 1.0 },
-          { top: 0x7aa9d8, mid: 0xeae3d2, bot: 0xd5c6a8, sunC: 0xfff1d0, hemiI: 0.6,  sunI: 1.4,  fog: 0xd5d0c2, fogD: 0.010, exp: 1.05 },
-          { top: 0xb37553, mid: 0xe9b984, bot: 0xc88553, sunC: 0xffb060, hemiI: 0.45, sunI: 1.5,  fog: 0xc99878, fogD: 0.014, exp: 1.0 },
-          { top: 0x5a4070, mid: 0xa86a72, bot: 0x6e4358, sunC: 0xff8055, hemiI: 0.28, sunI: 0.7,  fog: 0x7e5a6a, fogD: 0.018, exp: 0.95 },
-          { top: 0x0a1428, mid: 0x14223e, bot: 0x0a1024, sunC: 0xb6c2ee, hemiI: 0.10, sunI: 0.18, fog: 0x0e1626, fogD: 0.022, exp: 0.85 },
+          { top: 0x4d7aae, mid: 0xe8d8b9, bot: 0xd9c19a, sunC: 0xffd7a8, hemiI: 0.45, sunI: 0.7,  fog: 0xc7c2b5, fogD: 0.012, exp: 0.95 },
+          { top: 0x7aabd8, mid: 0xeae3d2, bot: 0xd5c6a8, sunC: 0xfff1d0, hemiI: 0.55, sunI: 1.4,  fog: 0xd5d0c2, fogD: 0.009, exp: 1.05 },
+          { top: 0xc07a55, mid: 0xeab984, bot: 0xc88553, sunC: 0xffae50, hemiI: 0.42, sunI: 1.5,  fog: 0xc99878, fogD: 0.014, exp: 1.00 },
+          { top: 0x523968, mid: 0xa06868, bot: 0x6e4358, sunC: 0xff7848, hemiI: 0.25, sunI: 0.55, fog: 0x7e5a6a, fogD: 0.020, exp: 0.92 },
+          { top: 0x080f24, mid: 0x121e36, bot: 0x080d1c, sunC: 0xa8b6e8, hemiI: 0.08, sunI: 0.12, fog: 0x0c1422, fogD: 0.022, exp: 0.78 },
         ];
         const seg = phase * (palettes.length - 1);
         const i = Math.min(Math.floor(seg), palettes.length - 2);
         const f = seg - i;
         const a = palettes[i], b = palettes[i+1];
-        const cTop = new THREE.Color(a.top).lerp(new THREE.Color(b.top), f);
-        const cMid = new THREE.Color(a.mid).lerp(new THREE.Color(b.mid), f);
-        const cBot = new THREE.Color(a.bot).lerp(new THREE.Color(b.bot), f);
-        const cSun = new THREE.Color(a.sunC).lerp(new THREE.Color(b.sunC), f);
-        const cFog = new THREE.Color(a.fog).lerp(new THREE.Color(b.fog), f);
+        function mix(ca, cb) { return new THREE.Color(ca).lerp(new THREE.Color(cb), f); }
+        const cTop = mix(a.top, b.top), cMid = mix(a.mid, b.mid), cBot = mix(a.bot, b.bot);
+        const cSun = mix(a.sunC, b.sunC), cFog = mix(a.fog, b.fog);
         skyUniforms.uTop.value.copy(cTop);
         skyUniforms.uMid.value.copy(cMid);
         skyUniforms.uBottom.value.copy(cBot);
@@ -583,127 +573,193 @@
         scene.fog.color.copy(cFog);
         scene.fog.density = a.fogD + (b.fogD - a.fogD) * f;
 
-        // Interior lights ramp up after golden hour
-        const nightStrength = Math.max(0, (phase - 0.45)) / 0.55;
-        const baseIntensity = nightStrength * 1.6;
-        interiorLights[0].intensity = baseIntensity * 1.1;
-        interiorLights[1].intensity = baseIntensity * 1.0;
-        interiorLights[2].intensity = baseIntensity * 1.0;
-        interiorLights[3].intensity = baseIntensity * 1.1;
-        interiorLights[4].intensity = baseIntensity * 0.9;
-        interiorLights[5].intensity = baseIntensity * 1.2;
-        interiorLights[6].intensity = nightStrength * 1.8; // pool
-        interiorLights[7].intensity = nightStrength * 1.4; // garden
-
-        // Soffit emissive ramp at night
-        soffit.material.emissiveIntensity = 0.25 + nightStrength * 0.9;
-        roofSoffit.material.emissiveIntensity = 0.2 + nightStrength * 0.7;
-
-        // Pool reflectivity stronger at night
-        matWaterDay.roughness = 0.12 - nightStrength * 0.08;
-        matWaterDay.color.lerpColors(new THREE.Color(0x6f9bb0), new THREE.Color(0x1a2a3a), nightStrength);
-
-        // Pendant emissive a touch brighter at night
-        pendantMat.emissiveIntensity = 0.8 + nightStrength * 1.4;
-
-        // Fireflies
-        fireflies.material.opacity = nightStrength * 0.8;
-        motes.material.opacity = 0.45 - nightStrength * 0.25;
+        // Interior lights ramp up past golden hour
+        const night = Math.max(0, (phase - 0.45)) / 0.55;
+        for (const slot of registry.interiorLights) {
+          slot.light.intensity = slot.base * night * (0.95 + Math.sin(slot.light.position.x + slot.light.position.z) * 0.08);
+        }
+        // Soffit emissive
+        for (const s of registry.soffits) {
+          s.material.emissiveIntensity = 0.25 + night * 1.0;
+        }
+        if (registry.pendantMat) {
+          registry.pendantMat.emissiveIntensity = 0.75 + night * 1.4;
+        }
+        // Water gets darker/glassier at night
+        M.matWater.roughness = 0.06 - night * 0.04;
+        M.matWater.color.lerpColors(new THREE.Color(0x5d8aa3), new THREE.Color(0x1a2030), night);
+        // Particles
+        fireflies.material.opacity = night * 0.85;
+        motes.material.opacity = 0.55 - night * 0.4;
+        dust.material.opacity = 0.25 - night * 0.18;
+        // Bird visibility — only daytime
+        birds.forEach(b => { b.children.forEach(c => c.material.opacity = (1 - night) * 0.85); });
+        // Post-FX night flag (subtle desat)
+        compMat.uniforms.uNight.value = night;
+        // Aberration eases at night, bloom strengthens
+        compMat.uniforms.uAberration.value = 0.0030 - night * 0.0010;
+        compMat.uniforms.uBloomStrength.value = 0.55 + night * 0.65;
+        compMat.uniforms.uVignette.value = 0.55 + night * 0.30;
+        // Theatre screen gets brighter at night
+        if (registry.theatreScreen) {
+          registry.theatreScreen.emissiveIntensity = 1.4 + night * 1.2;
+        }
+        // Re-bake env if phase moved significantly
+        bakeEnv(phase);
       }
       setDayPhase(0.18);
 
-      /* ====================== ANIMATE ====================== */
+      /* =============== EVENTS =============== */
+      function onMouseMove(e) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        tMouseX = ((e.clientX - rect.left) / rect.width  - 0.5) * 2;
+        tMouseY = ((e.clientY - rect.top)  / rect.height - 0.5) * 2;
+      }
+      window.addEventListener('mousemove', onMouseMove);
+
+      function onResize() {
+        const w = container.clientWidth, h = container.clientHeight;
+        camera.aspect = w / h; camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+        sceneRT.setSize(w, h);
+        brightRT.setSize(Math.max(2, Math.floor(w/2)), Math.max(2, Math.floor(h/2)));
+        blurHRT.setSize(Math.max(2, Math.floor(w/2)), Math.max(2, Math.floor(h/2)));
+        blurVRT.setSize(Math.max(2, Math.floor(w/2)), Math.max(2, Math.floor(h/2)));
+      }
+      window.addEventListener('resize', onResize);
+
+      /* =============== ANIMATE LOOP =============== */
       const clock = new THREE.Clock();
       let frame;
+      let envRebakeCounter = 0;
+
       function animate() {
         frame = requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
         const dt = clock.getDelta();
 
-        // Smooth mouse inertia
+        // Sky time (for cloud drift)
+        skyUniforms.uTime.value = t;
+
+        // Mouse inertia
         mouseX += (tMouseX - mouseX) * 0.05;
         mouseY += (tMouseY - mouseY) * 0.05;
 
-        // Drive camera target
-        sampleStops(scrollProgress);
+        // Drive camera target along curve
+        sampleCurve(scrollProgress);
 
-        // Smooth camera follow (inertia)
+        // Lens breathing: subtle FOV oscillation while paused on a stop
+        const lensBreath = Math.sin(t * 0.6) * 0.6;
+
+        // Position with parallax offset
+        const px = mouseX * 0.7;
+        const py = -mouseY * 0.35;
         camera.position.lerp(
-          v.copy(targetPos).add(new THREE.Vector3(mouseX * 0.7, -mouseY * 0.35, 0)),
-          0.06
+          _v.copy(targetPos).add(new THREE.Vector3(px, py, 0)),
+          0.055
         );
-        // Camera shake (perlin-y from sines)
+        // Micro shake (handheld)
         const shake = shakeAmt * (Math.sin(t*7.3)*0.5 + Math.sin(t*11.1)*0.3 + Math.cos(t*3.7)*0.2);
+        const shakeX = shakeAmt * 0.6 * (Math.cos(t*5.1)*0.5 + Math.sin(t*9.7)*0.3);
         camera.position.y += shake;
+        camera.position.x += shakeX;
 
-        look.lerp(targetLook, 0.08);
-        camera.lookAt(look);
+        _l.lerp(targetLook, 0.075);
+        camera.lookAt(_l);
 
-        // FOV ease
-        camera.fov += (targetFov - camera.fov) * 0.06;
+        // FOV with lens breathing
+        const desiredFov = targetFov + lensBreath;
+        camera.fov += (desiredFov - camera.fov) * 0.06;
         camera.updateProjectionMatrix();
 
         // Water ripples
         for (let i = 0; i < waterPos.count; i++) {
           const x = waterPos.getX(i), y = waterPos.getY(i);
-          const z = Math.sin(x*0.6 + t*1.2) * 0.025 + Math.cos(y*0.8 + t*1.6) * 0.025;
+          const z = Math.sin(x*0.6 + t*1.2) * 0.02 + Math.cos(y*0.8 + t*1.6) * 0.02 + Math.sin(x*1.4 + y*1.1 + t*0.9) * 0.01;
           waterPos.setZ(i, z);
         }
         waterPos.needsUpdate = true;
+        water.geometry.computeVertexNormals();
 
-        // Drift palms slightly
-        for (let i = 0; i < palms.length; i++) {
-          palms[i].rotation.z = Math.sin(t*0.6 + i)*0.012;
+        // Palms sway
+        if (landscape && landscape.palms) {
+          for (let i = 0; i < landscape.palms.length; i++) {
+            landscape.palms[i].rotation.z = Math.sin(t*0.55 + i)*0.012;
+            landscape.palms[i].rotation.x = Math.cos(t*0.6 + i*0.7)*0.008;
+          }
         }
 
-        // Particle drift
+        // Motes drift
         const mp = motes.geometry.attributes.position;
         for (let i = 0; i < mp.count; i++) {
-          mp.array[i*3+1] += Math.sin(t * 0.3 + i) * 0.0015;
-          mp.array[i*3]   += Math.cos(t * 0.2 + i) * 0.0012;
+          mp.array[i*3+1] += Math.sin(t * 0.3 + i) * 0.0014;
+          mp.array[i*3]   += Math.cos(t * 0.2 + i) * 0.0011;
         }
         mp.needsUpdate = true;
+
+        // Dust drift (slower)
+        const dp = dust.geometry.attributes.position;
+        for (let i = 0; i < dp.count; i++) {
+          dp.array[i*3+1] += Math.sin(t * 0.15 + i*0.7) * 0.0008;
+        }
+        dp.needsUpdate = true;
 
         // Fireflies bob
         const fp = fireflies.geometry.attributes.position;
         for (let i = 0; i < fp.count; i++) {
-          fp.array[i*3+1] += Math.sin(t * 1.2 + i*1.7) * 0.008;
-          fp.array[i*3]   += Math.cos(t * 0.9 + i*2.3) * 0.006;
+          fp.array[i*3+1] += Math.sin(t * 1.2 + i*1.7) * 0.007;
+          fp.array[i*3]   += Math.cos(t * 0.9 + i*2.3) * 0.005;
+          fp.array[i*3+2] += Math.sin(t * 1.1 + i*1.3) * 0.005;
         }
         fp.needsUpdate = true;
 
-        // Interior light flicker
-        interiorLights.forEach((l, i) => {
-          if (l.intensity > 0) {
-            l.intensity *= 1 + Math.sin(t * (2.1 + i*0.3)) * 0.012;
-          }
-        });
+        // Birds — circular flight + wing flap
+        for (let i = 0; i < birds.length; i++) {
+          const b = birds[i];
+          const ud = b.userData;
+          const a = t * ud.speed + ud.phase;
+          b.position.set(Math.cos(a) * ud.radius, ud.ySpan + Math.sin(a*0.7) * 1.5, Math.sin(a) * ud.radius - 30);
+          b.rotation.y = -a + Math.PI/2;
+          // Wing flap
+          const flap = Math.sin(t * 8 + ud.wingPhase) * 0.5;
+          ud.wL.rotation.y = -flap;
+          ud.wR.rotation.y = flap;
+        }
 
-        renderer.render(scene, camera);
+        // Interior lights flicker subtle
+        for (const slot of registry.interiorLights) {
+          if (slot.light.intensity > 0.01 && slot.type === 'lamp') {
+            slot.light.intensity *= 1 + Math.sin(t * 2.6 + slot.light.position.x) * 0.012;
+          }
+        }
+
+        // Post FX time
+        compMat.uniforms.uTime.value = t;
+
+        // Periodically re-bake env map (handle slow phase drift)
+        envRebakeCounter++;
+        // (no-op; bakeEnv is called from setDayPhase when phase moves)
+
+        // Render via post FX pipeline
+        renderPostFX();
       }
       animate();
 
-      /* ====================== RESIZE ====================== */
-      function onResize() {
-        const w = container.clientWidth, h = container.clientHeight;
-        camera.aspect = w / h; camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
-      }
-      window.addEventListener('resize', onResize);
-
-      /* ====================== API ====================== */
+      /* =============== API =============== */
       return {
         setProgress(p) { scrollProgress = Math.max(0, Math.min(1, p)); },
         setDayPhase,
         snapTo(idx) {
-          const total = stops.length - 1;
-          scrollProgress = Math.max(0, Math.min(1, idx / (total - 1)));
+          const total = STOPS.length - 1;
+          scrollProgress = Math.max(0, Math.min(1, idx / total));
         },
-        getNumStops() { return stops.length; },
+        getNumStops() { return STOPS.length; },
         destroy() {
           cancelAnimationFrame(frame);
           window.removeEventListener('mousemove', onMouseMove);
           window.removeEventListener('resize', onResize);
+          sceneRT.dispose(); brightRT.dispose(); blurHRT.dispose(); blurVRT.dispose();
+          pmrem.dispose();
           renderer.dispose();
           if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
         }
