@@ -2,53 +2,575 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vitara — Residences Composed</title>
-<meta name="description" content="Vitara is a residential design studio composing private homes from site to switch — interiors, exteriors, landscape, lighting and smart home, under one principal." />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Vitara — Atmosphere · Resonance · Texture</title>
+<meta name="description" content="Vitara — a residential design studio composing ultra-luxury villa interiors. Atmosphere, resonance, texture." />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="styles.css">
+<style>
+  :root {
+    --ink:    #0a0807;
+    --ink-2:  #14110d;
+    --bone:   #efe9dc;
+    --bone-2: #d8cfbd;
+    --amber:  #c69052;
+    --amber-2:#a3733c;
+    --stone:  #6e655a;
+    --serif:  "Playfair Display", "Cormorant Garamond", Didot, Georgia, serif;
+    --italic: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+    --sans:   "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--bone); }
+  html { scroll-behavior: auto; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: var(--sans);
+    overflow-x: hidden;
+    line-height: 1.6;
+    /* Lenis sets transform on html — make sure body's overscroll matches */
+  }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
 
-<!-- React + Babel (pinned) -->
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  ::selection { background: var(--amber); color: var(--ink); }
 
-<!-- Three.js, GSAP + ScrollTrigger, Lenis -->
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-<script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js"></script>
-<script src="https://unpkg.com/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-<script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
+  /* ============================================================
+     PRELOADER
+     ============================================================ */
+  #preloader {
+    position: fixed; inset: 0; z-index: 200;
+    background: var(--ink); color: var(--bone);
+    display: grid; place-items: center;
+    transition: opacity .9s cubic-bezier(.6,.0,.2,1), visibility .9s;
+  }
+  #preloader.is-out { opacity: 0; visibility: hidden; pointer-events: none; }
+  #preloader .pl-inner {
+    text-align: center;
+  }
+  #preloader .pl-mark {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 6vw, 84px);
+    letter-spacing: 0.34em; padding-left: 0.34em;
+  }
+  #preloader .pl-sub {
+    margin-top: 18px;
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone);
+  }
+  #preloader .pl-bar {
+    margin: 26px auto 0; width: 80px; height: 1px; background: rgba(239,233,220,.15); overflow: hidden;
+  }
+  #preloader .pl-bar i {
+    display: block; height: 100%; width: 0%; background: var(--bone);
+    transition: width 1.5s cubic-bezier(.7,.0,.2,1);
+  }
+
+  /* ============================================================
+     CHROME (top nav, side rails)
+     ============================================================ */
+  .chrome-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+    padding: 26px clamp(20px, 4vw, 56px);
+    display: flex; justify-content: space-between; align-items: center;
+    pointer-events: none;
+    mix-blend-mode: difference;
+  }
+  .chrome-nav > * { pointer-events: auto; }
+  .chrome-nav .brand {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 22px; letter-spacing: 0.36em; padding-left: 0.36em;
+    color: var(--bone);
+  }
+  .chrome-nav .nav-link {
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.85;
+    transition: opacity .3s;
+  }
+  .chrome-nav .nav-link:hover { opacity: 1; }
+  .chrome-nav .nav-right {
+    display: flex; align-items: center; gap: 32px;
+  }
+
+  /* Floating side counter */
+  .side-counter {
+    position: fixed; bottom: 32px; left: clamp(20px, 4vw, 56px);
+    z-index: 80; pointer-events: none;
+    mix-blend-mode: difference; color: var(--bone);
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 16px;
+    opacity: 0; transition: opacity .8s;
+  }
+  .side-counter.is-on { opacity: 1; }
+  .side-counter .num {
+    font-family: var(--serif); font-size: 24px; letter-spacing: 0.08em;
+    transition: transform .6s cubic-bezier(.5,.0,.2,1);
+  }
+  .side-counter .lbl { opacity: 0.7; }
+  .side-counter .bar {
+    width: 56px; height: 1px; background: rgba(239,233,220,.3); position: relative;
+  }
+  .side-counter .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bone); width: 0%; transition: width .6s cubic-bezier(.5,.0,.2,1); }
+
+  /* Sound / progress, bottom right */
+  .side-progress {
+    position: fixed; bottom: 32px; right: clamp(20px, 4vw, 56px);
+    z-index: 80; pointer-events: none;
+    mix-blend-mode: difference; color: var(--bone);
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .side-progress .pct {
+    font-family: var(--serif); font-size: 24px; letter-spacing: 0.08em;
+  }
+
+  /* ============================================================
+     HERO
+     ============================================================ */
+  .hero {
+    position: relative; height: 100svh; width: 100%;
+    overflow: hidden;
+    display: grid; place-items: center;
+    color: var(--bone);
+  }
+  .hero__bg {
+    position: absolute; inset: 0; overflow: hidden; z-index: 0;
+  }
+  .hero__bg img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    opacity: 0;
+    transition: opacity 2.4s cubic-bezier(.5,.0,.2,1);
+    transform-origin: 60% 50%;
+    animation: heroKen 16s ease-in-out infinite alternate;
+    will-change: transform, opacity;
+  }
+  .hero__bg img.is-on { opacity: 1; }
+  @keyframes heroKen {
+    from { transform: scale(1.04) translateX(0%); }
+    to   { transform: scale(1.14) translateX(-1.5%); }
+  }
+  .hero__veil {
+    position: absolute; inset: 0; z-index: 1;
+    background:
+      radial-gradient(ellipse at 50% 80%, transparent 0%, rgba(10,8,7,0.6) 70%),
+      linear-gradient(to bottom, rgba(10,8,7,0.55) 0%, rgba(10,8,7,0.25) 35%, rgba(10,8,7,0.45) 70%, rgba(10,8,7,0.85) 100%);
+  }
+  .hero__content {
+    position: relative; z-index: 2; text-align: center; padding: 0 16px;
+    max-width: 1280px;
+  }
+  .hero__year {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.7; margin-bottom: 34px;
+  }
+  .hero__title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(96px, 22vw, 320px);
+    letter-spacing: 0.04em; padding-left: 0.04em;
+    line-height: 0.92;
+    color: var(--bone);
+    text-shadow: 0 4px 60px rgba(0,0,0,0.55);
+  }
+  .hero__subtitle {
+    margin-top: 38px;
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(20px, 2.3vw, 32px);
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.95;
+    display: flex; gap: clamp(14px, 2.5vw, 36px); justify-content: center; flex-wrap: wrap;
+  }
+  .hero__subtitle span:not(:last-child)::after {
+    content: "·"; margin-left: clamp(14px, 2.5vw, 36px); opacity: 0.7;
+  }
+  .hero__scroll {
+    position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+    z-index: 2;
+    font-size: 10px; letter-spacing: 0.36em; text-transform: uppercase;
+    color: var(--bone); opacity: 0.7;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .hero__scroll .line { width: 1px; height: 56px; background: linear-gradient(to bottom, var(--bone), transparent); }
+  .hero__scroll .line::after {
+    content: ""; position: absolute; width: 1px; height: 18px;
+    background: var(--bone);
+    animation: scrollDot 2.2s ease-in-out infinite;
+  }
+  @keyframes scrollDot {
+    0%   { transform: translateY(-18px); opacity: 0; }
+    30%  { opacity: 1; }
+    100% { transform: translateY(56px); opacity: 0; }
+  }
+  .hero__dots {
+    position: absolute; bottom: 32px; right: clamp(20px, 4vw, 56px);
+    z-index: 3; display: flex; gap: 8px;
+  }
+  .hero__dots span {
+    width: 22px; height: 1px; background: rgba(239,233,220,.3);
+    transition: background .6s, transform .6s;
+  }
+  .hero__dots span.is-on { background: var(--bone); transform: scaleX(1.6); }
+
+  /* ============================================================
+     INTRO TAGLINE
+     ============================================================ */
+  .intro {
+    padding: clamp(140px, 18vw, 240px) clamp(20px, 5vw, 80px);
+    min-height: 100svh; display: grid; place-items: center;
+    text-align: center;
+    background: var(--ink);
+    position: relative;
+  }
+  .intro__eyebrow {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 36px;
+    display: inline-flex; align-items: center; gap: 14px;
+  }
+  .intro__eyebrow::before,
+  .intro__eyebrow::after {
+    content: ""; width: 32px; height: 1px; background: currentColor; opacity: 0.7;
+  }
+  .intro__h {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 6.4vw, 96px);
+    line-height: 1.04;
+    letter-spacing: -0.012em;
+    color: var(--bone);
+    max-width: 22ch; margin: 0 auto;
+    text-wrap: balance;
+  }
+  .intro__h em {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    color: var(--amber);
+  }
+  .intro__meta {
+    margin-top: 80px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: clamp(20px, 4vw, 80px);
+    max-width: 980px; margin-left: auto; margin-right: auto;
+  }
+  .intro__meta .m {
+    text-align: left;
+    border-top: 1px solid rgba(239,233,220,.18); padding-top: 18px;
+  }
+  .intro__meta .m .l {
+    font-size: 9px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 10px;
+  }
+  .intro__meta .m .v {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(20px, 2vw, 28px);
+    color: var(--bone-2); line-height: 1.3;
+  }
+
+  /* ============================================================
+     CHAPTERS
+     ============================================================ */
+  .chapter {
+    position: relative;
+    height: 100svh;
+    width: 100%;
+    overflow: hidden;
+    background: var(--ink);
+  }
+  .chapter__img-wrap {
+    position: absolute; inset: 0;
+    overflow: hidden;
+    will-change: transform;
+  }
+  .chapter__img {
+    position: absolute; inset: -5%;
+    width: 110%; height: 110%; object-fit: cover;
+    transform: scale(1);
+    will-change: transform;
+  }
+  .chapter__veil {
+    position: absolute; inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(10,8,7,0.78) 0%,
+      rgba(10,8,7,0.32) 38%,
+      rgba(10,8,7,0.18) 60%,
+      rgba(10,8,7,0.85) 100%);
+    pointer-events: none;
+  }
+  .chapter__veil--right {
+    background: linear-gradient(
+      225deg,
+      rgba(10,8,7,0.80) 0%,
+      rgba(10,8,7,0.30) 40%,
+      rgba(10,8,7,0.15) 60%,
+      rgba(10,8,7,0.85) 100%);
+  }
+  .chapter__veil--vert {
+    background: linear-gradient(
+      to bottom,
+      rgba(10,8,7,0.55) 0%,
+      rgba(10,8,7,0.10) 40%,
+      rgba(10,8,7,0.10) 60%,
+      rgba(10,8,7,0.92) 100%);
+  }
+
+  .chapter__num {
+    position: absolute;
+    top: clamp(56px, 8vh, 96px);
+    right: clamp(24px, 5vw, 64px);
+    z-index: 3;
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(120px, 18vw, 240px);
+    line-height: 1; letter-spacing: -0.04em;
+    color: var(--bone); opacity: 0.08;
+    pointer-events: none;
+  }
+
+  .chapter__copy {
+    position: absolute;
+    bottom: clamp(80px, 10vh, 140px);
+    left: clamp(24px, 5vw, 80px);
+    right: clamp(24px, 5vw, 80px);
+    z-index: 3;
+    max-width: 720px;
+    color: var(--bone);
+  }
+  .chapter--right .chapter__copy {
+    left: auto;
+    margin-left: auto;
+    text-align: right;
+  }
+
+  .chapter__eyebrow {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 24px;
+    display: inline-flex; align-items: center; gap: 14px;
+  }
+  .chapter__eyebrow .e-line {
+    width: 40px; height: 1px; background: currentColor; opacity: 0.7;
+  }
+  .chapter__eyebrow .idx {
+    color: var(--bone-2); opacity: 0.8;
+  }
+  .chapter--right .chapter__eyebrow { justify-content: flex-end; }
+
+  .chapter__title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(56px, 9.5vw, 156px);
+    line-height: 0.96; letter-spacing: -0.025em;
+    color: var(--bone);
+    text-shadow: 0 6px 60px rgba(0,0,0,0.4);
+  }
+  .chapter__title em {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    color: var(--amber);
+  }
+  .chapter__text {
+    margin-top: 28px;
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(18px, 1.7vw, 24px);
+    line-height: 1.55;
+    color: var(--bone-2);
+    max-width: 48ch;
+    opacity: 0.92;
+    text-wrap: pretty;
+  }
+  .chapter--right .chapter__text { margin-left: auto; }
+  .chapter__specs {
+    margin-top: 36px;
+    display: flex; gap: clamp(20px, 3vw, 44px);
+    flex-wrap: wrap;
+  }
+  .chapter--right .chapter__specs { justify-content: flex-end; }
+  .chapter__specs .s {
+    text-align: left;
+    border-top: 1px solid rgba(239,233,220,.25);
+    padding-top: 12px;
+    min-width: 110px;
+  }
+  .chapter__specs .s .l {
+    font-size: 9px; letter-spacing: 0.36em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 4px;
+  }
+  .chapter__specs .s .v {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: 18px;
+    color: var(--bone-2);
+  }
+
+  /* Reveal-ready state (initial; GSAP animates these to 0/1) */
+  .reveal-y { opacity: 0; transform: translateY(40px); filter: blur(8px); }
+  .reveal-x { opacity: 0; transform: translateX(-40px); }
+
+  /* ============================================================
+     OUTRO / CONTACT
+     ============================================================ */
+  .outro {
+    min-height: 100svh;
+    padding: clamp(120px, 16vw, 200px) clamp(24px, 5vw, 80px);
+    background: var(--ink);
+    display: grid; place-items: center; text-align: center;
+    position: relative;
+  }
+  .outro::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(198,144,82,0.16) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .outro__inner { position: relative; z-index: 2; max-width: 1100px; }
+  .outro__eyebrow {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 32px;
+  }
+  .outro__h {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(48px, 7vw, 120px);
+    line-height: 0.98; letter-spacing: -0.02em;
+    color: var(--bone);
+    text-wrap: balance;
+  }
+  .outro__h em {
+    font-family: var(--italic); font-style: italic; font-weight: 300; color: var(--amber);
+  }
+  .outro__p {
+    margin-top: 36px;
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(20px, 2.1vw, 28px);
+    color: var(--bone-2); max-width: 56ch; margin-left: auto; margin-right: auto;
+    line-height: 1.55;
+  }
+  .outro__btn {
+    margin-top: 56px;
+    display: inline-flex; align-items: center; gap: 14px;
+    padding: 18px 36px;
+    border: 1px solid var(--bone);
+    color: var(--bone);
+    font-size: 11px; letter-spacing: 0.36em; text-transform: uppercase;
+    transition: background .35s, color .35s, padding .35s;
+  }
+  .outro__btn:hover { background: var(--bone); color: var(--ink); padding-right: 42px; }
+  .outro__btn .arr { transition: transform .35s; }
+  .outro__btn:hover .arr { transform: translateX(4px); }
+
+  .outro__meta {
+    margin-top: 100px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: clamp(20px, 4vw, 80px);
+    text-align: left;
+  }
+  .outro__meta .m {
+    border-top: 1px solid rgba(239,233,220,.18); padding-top: 18px;
+  }
+  .outro__meta .m .l {
+    font-size: 9px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 10px;
+  }
+  .outro__meta .m .v {
+    font-family: var(--italic); font-style: italic; font-weight: 300;
+    font-size: clamp(18px, 1.8vw, 22px);
+    color: var(--bone-2);
+  }
+
+  /* Footer */
+  .foot {
+    padding: 56px clamp(24px, 5vw, 80px) 32px;
+    background: var(--ink);
+    border-top: 1px solid rgba(239,233,220,.10);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 20px;
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--stone);
+  }
+  .foot .brand {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 18px; letter-spacing: 0.36em; padding-left: 0.36em;
+    color: var(--bone-2);
+  }
+
+  /* ============================================================
+     MOBILE
+     ============================================================ */
+  @media (max-width: 760px) {
+    .chrome-nav { padding: 18px 18px; }
+    .chrome-nav .nav-right { gap: 18px; }
+    .chrome-nav .nav-link:nth-child(2) { display: none; }
+    .side-counter, .side-progress { font-size: 9px; gap: 10px; bottom: 18px; }
+    .hero__subtitle { font-size: 13px; letter-spacing: 0.28em; gap: 8px; }
+    .hero__subtitle span:not(:last-child)::after { margin-left: 8px; }
+    .hero__title { font-size: 26vw; }
+    .hero__year { font-size: 9px; letter-spacing: 0.34em; margin-bottom: 24px; }
+    .hero__scroll { bottom: 26px; }
+    .hero__scroll .line { height: 40px; }
+    .hero__dots { display: none; }
+    .intro__meta { grid-template-columns: 1fr; gap: 22px; }
+    .intro__h { font-size: 38px; line-height: 1.08; max-width: 18ch; }
+    .chapter__num { font-size: 36vw; top: 24px; right: 16px; opacity: 0.1; }
+    .chapter__copy {
+      left: 20px; right: 20px; bottom: 60px;
+    }
+    .chapter--right .chapter__copy { text-align: left; }
+    .chapter--right .chapter__eyebrow { justify-content: flex-start; }
+    .chapter--right .chapter__text { margin-left: 0; }
+    .chapter--right .chapter__specs { justify-content: flex-start; }
+    .chapter__title { font-size: 17vw; line-height: 0.98; }
+    .chapter__text { font-size: 16px; }
+    .chapter__specs .s { min-width: 90px; }
+    .chapter__specs .s .v { font-size: 15px; }
+    .outro__meta { grid-template-columns: 1fr; gap: 24px; }
+    .outro__h { font-size: 12vw; }
+    .outro__p { font-size: 17px; }
+  }
+
+  /* Reduce motion */
+  @media (prefers-reduced-motion: reduce) {
+    .hero__bg img { animation: none; }
+    * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+</style>
 </head>
 <body>
 
-<!-- Preloader -->
+<!-- ============== Preloader ============== -->
 <div id="preloader">
-  <div class="mark">Vitara</div>
-  <div class="line"><i></i></div>
-  <div class="lbl">Composing residence № 014 · 1,100 surfaces</div>
+  <div class="pl-inner">
+    <div class="pl-mark">VITARA</div>
+    <div class="pl-sub">Atmosphere · Resonance · Texture</div>
+    <div class="pl-bar"><i id="pl-bar-i"></i></div>
+  </div>
 </div>
 
-<!-- Cursor overlays -->
-<div id="cursor"></div>
-<div id="cursor-label"></div>
+<!-- ============== Chrome Nav ============== -->
+<nav class="chrome-nav">
+  <a href="#" class="brand">VITARA</a>
+  <div class="nav-right">
+    <a class="nav-link" href="#intro">Studio</a>
+    <a class="nav-link" href="#chapter-01">Residences</a>
+    <a class="nav-link" href="#outro">Begin</a>
+  </div>
+</nav>
 
-<div id="root"></div>
+<!-- Fixed counter (becomes visible once we enter chapters) -->
+<div class="side-counter" id="side-counter">
+  <span class="num" id="ctr-num">01</span>
+  <span class="bar"><i id="ctr-bar"></i></span>
+  <span class="lbl" id="ctr-lbl">Exterior</span>
+</div>
+<div class="side-progress">
+  <span class="lbl">Progress</span>
+  <span class="pct" id="prog-pct">0%</span>
+</div>
 
-<!-- Three.js villa scene (vanilla, mounts to #villa-canvas via React) -->
-<script src="villa-scene.js"></script>
-
-<!-- Ambient audio (WebAudio synth) -->
-<script src="audio.js"></script>
-
-<!-- React app (Babel) -->
-<script type="text/babel" src="data.jsx"></script>
-<script type="text/babel" src="shell.jsx"></script>
-<script type="text/babel" src="chapters.jsx"></script>
-<script type="text/babel" src="sections.jsx"></script>
-<script type="text/babel" src="main.jsx"></script>
-</body>
-</html>
+<!-- ============== HERO ============== -->
+<section class="hero" data-screen-label="00 Hero">
+  <div class="hero__bg" id="hero-bg">
+    <!-- images injected by JS -->
+  </div>
+  <div class="hero__veil"></div>
+  <div class="hero__content">
+    <div class="hero__year">MMXXVI · Residential Studio · est. 2014</div>
+    <h1 class="hero__title">VITARA</h1>
+    <div class="hero__subtitle">
+      <span>Atmosphere</span><span>Resonance</span><span>Texture</span>
+    </d
